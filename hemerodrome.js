@@ -1,10 +1,9 @@
 'use strict';
 
-require('barrkeep/pp');
-
 const vm = require('vm');
 const async = require('async');
 const fs = require('fs').promises;
+const pp = require('barrkeep/pp');
 const { join, resolve } = require('path');
 const expect = require('barrkeep/expect');
 const { merge, timestamp } = require('barrkeep/utils');
@@ -186,6 +185,8 @@ function Hemerodrome (options = {}) {
       return test.parent.chain;
     };
 
+    let cwd = spec.cwd;
+
     const context = {
       clearImmediate,
       clearInterval,
@@ -198,8 +199,8 @@ function Hemerodrome (options = {}) {
       process,
       queueMicrotask,
       require (path) {
-        if (path.startsWith('.')) {
-          path = resolve(join(spec.cwd, path));
+        if (/^[./]/.test(path)) {
+          path = resolve(join(cwd, path));
         }
         return require(path);
       },
@@ -211,6 +212,19 @@ function Hemerodrome (options = {}) {
     vm.createContext(context);
 
     try {
+      if (options.preload) {
+        cwd = resolve(options.preload.replace(/[^/]+$/, ''));
+
+        const preload = await fs.readFile(options.preload);
+
+        await vm.runInContext(preload, context, {
+          filename: file,
+          breakOnSigint: true,
+        });
+
+        cwd = spec.cwd;
+      }
+
       const code = await fs.readFile(file);
 
       vm.runInContext(code, context, {
@@ -248,7 +262,7 @@ function Hemerodrome (options = {}) {
 
     console.log('Done!');
 
-    console.pp(root);
+    pp(root);
 
     process.exit(root.state === 'failed' ? 1 : 0);
   });
