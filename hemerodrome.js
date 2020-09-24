@@ -24,6 +24,10 @@ function Hemerodrome (options = {}) {
     state: 'ready',
     start: timestamp(),
     stop: -1,
+    before: [],
+    after: [],
+    beforeEach: [],
+    afterEach: [],
   };
 
   //////////
@@ -69,6 +73,10 @@ function Hemerodrome (options = {}) {
       state: 'running',
       start: timestamp(),
       stop: -1,
+      before: [],
+      after: [],
+      beforeEach: [],
+      afterEach: [],
     };
 
     this.addChain(spec);
@@ -77,6 +85,42 @@ function Hemerodrome (options = {}) {
     root.items.push(spec);
 
     let parent = spec;
+
+    //////////
+
+    this.before = this.beforeAll = (name, func, timeout) => {
+      parent.before.push({
+        name,
+        func,
+        timeout,
+      });
+    };
+
+    this.after = this.afterAll = (name, func, timeout) => {
+      parent.after.push({
+        name,
+        func,
+        timeout,
+      });
+    };
+
+    this.beforeEach = (name, func, timeout) => {
+      parent.beforeEach.push({
+        name,
+        func,
+        timeout,
+      });
+    };
+
+    this.afterEach = (name, func, timeout) => {
+      parent.afterEach.push({
+        name,
+        func,
+        timeout,
+      });
+    };
+
+    //////////
 
     this.describe = (name, func, timeout = this.config.timeout) => {
       console.log('parent', parent.name);
@@ -88,6 +132,10 @@ function Hemerodrome (options = {}) {
         state: 'running',
         start: timestamp(),
         stop: -1,
+        before: [],
+        after: [],
+        beforeEach: [],
+        afterEach: [],
       };
 
       this.addChain(suite);
@@ -188,6 +236,12 @@ function Hemerodrome (options = {}) {
     let cwd = spec.cwd;
 
     const context = {
+      after: this.after,
+      afterAll: this.after,
+      afterEach: this.afterEach,
+      before: this.before,
+      beforeAll: this.beforeAll,
+      beforeEach: this.beforeEach,
       clearImmediate,
       clearInterval,
       clearTimeout,
