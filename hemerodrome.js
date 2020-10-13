@@ -53,7 +53,7 @@ function Hemerodrome (options = {}) {
     Object.defineProperty(object, 'parent', {
       value: parent,
       writable: false,
-      configurable: false,
+      configurable: true,
       enumerable: false,
     });
   };
@@ -65,6 +65,24 @@ function Hemerodrome (options = {}) {
       configurable: true,
       enumerable: false,
     });
+  };
+
+  //////////
+
+  this.cleanObject = (object, recurse = true) => {
+    const keys = Object.getOwnPropertyNames(object);
+
+    for (const key of keys) {
+      if (!object.propertyIsEnumerable(key)) {
+        delete object[key];
+      }
+    }
+
+    if (recurse && Array.isArray(object.items)) {
+      for (const item of object.items) {
+        this.cleanObject(item);
+      }
+    }
   };
 
   //////////
@@ -320,7 +338,7 @@ function Hemerodrome (options = {}) {
 
     let cwd = spec.cwd;
 
-    const context = {
+    let context = {
       after: this.after,
       afterAll: this.after,
       afterEach: this.afterEach,
@@ -384,6 +402,9 @@ function Hemerodrome (options = {}) {
     }
 
     spec.stop = timestamp();
+
+    context = null;
+    this.cleanObject(spec);
   }, this.config.parallel ? this.config.concurrency : 1);
 
   //////////
