@@ -132,14 +132,7 @@ function Hemerodrome (options = {}) {
         }
 
         return Promise.race([
-          new Promise(async (resolve, reject) => {
-            try {
-              await func();
-              resolve();
-            } catch (error) {
-              reject(error);
-            }
-          }),
+          func(),
           new Promise((resolve, reject) => {
             setTimeout(() => {
               reject(new Error(`Async callback not called within timeout of ${ scaffold.timeout }ms`));
@@ -294,14 +287,7 @@ function Hemerodrome (options = {}) {
           }
 
           return Promise.race([
-            new Promise(async (resolve, reject) => {
-              try {
-                await func();
-                resolve();
-              } catch (error) {
-                reject(error);
-              }
-            }),
+            func(),
             new Promise((resolve, reject) => {
               setTimeout(() => {
                 reject(new Error(`Async callback not called within timeout of ${ test.timeout }ms`));
