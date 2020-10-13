@@ -2,11 +2,11 @@
 
 describe('afoo', () => {
   describe('abar', async () => {
-    await new Promise((resolve) => setTimeout(resolve, 2000));
+    await new Promise((resolve) => setTimeout(resolve, 500));
     console.log('sorta');
 
     it('long resolve', async () => {
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       console.log('here');
     });
   });

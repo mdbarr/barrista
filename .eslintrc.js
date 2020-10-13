@@ -12,6 +12,10 @@ module.exports = {
     es6: true,
     jest: true,
   },
+  globals: {
+    before: true,
+    after: true,
+  },
   rules: {
     'accessor-pairs': 'error',
     'array-bracket-newline': [ 'error', { multiline: true } ],

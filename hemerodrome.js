@@ -17,28 +17,36 @@ const defaults = {
 function Hemerodrome (options = {}) {
   this.config = merge(defaults, options, true);
 
-  const root = {
-    name: 'hemerodrome',
-    object: 'results',
-    items: [],
-    state: 'ready',
-    start: timestamp(),
-    stop: -1,
-    before: [],
-    after: [],
-    beforeEach: [],
-    afterEach: [],
-  };
-
   //////////
 
-  this.addChain = (object) => {
-    Object.defineProperty(object, 'chain', {
-      value: Promise.resolve(),
+  this.addChains = (object) => {
+    let value;
+    if (object.object === 'test') {
+      value = {
+        beforeEach: Promise.resolve(),
+        afterEach: Promise.resolve(),
+      };
+    } else {
+      value = {
+        main: Promise.resolve(),
+        before: Promise.resolve(),
+        after: Promise.resolve(),
+      };
+    }
+
+    Object.defineProperty(object, 'chains', {
+      value,
       writable: true,
       configurable: true,
       enumerable: false,
     });
+  };
+
+  this.addScaffold = (object) => {
+    this.setPrivate(object, 'before', []);
+    this.setPrivate(object, 'after', []);
+    this.setPrivate(object, 'beforeEach', []);
+    this.setPrivate(object, 'afterEach', []);
   };
 
   this.setParent = (object, parent) => {
@@ -61,6 +69,19 @@ function Hemerodrome (options = {}) {
 
   //////////
 
+  const root = {
+    name: 'hemerodrome',
+    object: 'results',
+    items: [],
+    state: 'ready',
+    start: timestamp(),
+    stop: -1,
+  };
+
+  this.addScaffold(root);
+
+  //////////
+
   this.queue = async.queue(async (file) => {
     root.state = 'running';
 
@@ -73,13 +94,10 @@ function Hemerodrome (options = {}) {
       state: 'running',
       start: timestamp(),
       stop: -1,
-      before: [],
-      after: [],
-      beforeEach: [],
-      afterEach: [],
     };
 
-    this.addChain(spec);
+    this.addChains(spec);
+    this.addScaffold(spec);
     this.setParent(spec, root);
 
     root.items.push(spec);
@@ -87,6 +105,63 @@ function Hemerodrome (options = {}) {
     let parent = spec;
 
     //////////
+
+    this.scaffoldWrapper = (type, ancestor, {
+      name, func, timeout,
+    }, chains) => {
+      const scaffold = {
+        object: 'scaffold',
+        type,
+        name,
+        state: 'running',
+        start: timestamp(),
+        stop: -1,
+      };
+
+      this.setParent(scaffold, ancestor);
+      this.setPrivate(scaffold, 'timeout', timeout === undefined ? scaffold.parent.timeout : timeout);
+
+      chains = chains || scaffold.parent.chains;
+
+      scaffold.parent.items.push(scaffold);
+      console.log(type, name, scaffold.parent.name);
+
+      chains[type] = chains[type].then(async () => {
+        if (scaffold.timeout === 0) {
+          return await func();
+        }
+
+        return Promise.race([
+          new Promise(async (resolve, reject) => {
+            try {
+              await func();
+              resolve();
+            } catch (error) {
+              reject(error);
+            }
+          }),
+          new Promise((resolve, reject) => {
+            setTimeout(() => {
+              reject(new Error(`Async callback not called within timeout of ${ scaffold.timeout }ms`));
+            }, scaffold.timeout);
+          }),
+        ]);
+      }).
+        then(() => {
+          scaffold.state = 'passed';
+          scaffold.stop = timestamp();
+        }).
+        catch((error) => {
+          scaffold.state = 'failed';
+          scaffold.parent.state = scaffold.state;
+
+          scaffold.error = error.toString();
+
+          scaffold.stop = timestamp();
+        });
+
+      return scaffold.parent[type];
+    };
 
     this.before = this.beforeAll = (name, func, timeout) => {
       parent.before.push({
@@ -132,29 +207,32 @@ function Hemerodrome (options = {}) {
         state: 'running',
         start: timestamp(),
         stop: -1,
-        before: [],
-        after: [],
-        beforeEach: [],
-        afterEach: [],
       };
 
-      this.addChain(suite);
+      this.addChains(suite);
+      this.addScaffold(suite);
       this.setParent(suite, parent);
       this.setPrivate(suite, 'timeout', timeout);
 
-      console.log(suite.parent.name);
+      suite.parent.chains.main = suite.parent.chains.main.
+        then(() => {
+          suite.parent.before.forEach((item) => {
+            this.scaffoldWrapper('before', suite.parent, item);
+          });
 
-      suite.parent.items.push(suite);
-
-      suite.parent.chain = suite.parent.chain.
+          return suite.chains.before;
+        }).
         then(async () => {
+          console.log(suite.parent.name);
+          suite.parent.items.push(suite);
+
           parent = suite;
 
           console.log('describe', name, suite.parent.name);
           await func();
         }).
         then(async () => {
-          await suite.chain;
+          await suite.chains.main;
 
           if (suite.state === 'failed') {
             suite.parent.state = suite.state;
@@ -167,7 +245,7 @@ function Hemerodrome (options = {}) {
           parent = suite.parent;
         }).
         catch(async (error) => {
-          await suite.chain;
+          await suite.chains.main;
 
           suite.state = 'failed';
           suite.parent.state = suite.state;
@@ -175,9 +253,15 @@ function Hemerodrome (options = {}) {
           suite.stop = timestamp();
 
           parent = suite.parent;
+        }).
+        then(() => {
+          suite.parent.after.forEach((item) => {
+            this.scaffoldWrapper('after', suite.parent, item);
+          });
+          return suite.chains.after;
         });
 
-      return suite.chain;
+      return suite.chains.main;
     };
 
     this.it = (name, func, timeout) => {
@@ -190,13 +274,21 @@ function Hemerodrome (options = {}) {
       };
 
       this.setParent(test, parent);
+      this.addChains(test);
       this.setPrivate(test, 'timeout', timeout === undefined ? parent.timeout : timeout);
 
-      test.parent.items.push(test);
-      console.log('it', name, parent.name);
+      test.parent.chains.main = test.parent.chains.main.
+        then(() => {
+          test.parent.beforeEach.forEach((item) => {
+            this.scaffoldWrapper('beforeEach', test.parent, item, test.chains);
+          });
 
-      test.parent.chain = test.parent.chain.
+          return test.chains.beforeEach;
+        }).
         then(async () => {
+          console.log('it', name, parent.name);
+          test.parent.items.push(test);
+
           if (test.timeout === 0) {
             return await func();
           }
@@ -228,9 +320,16 @@ function Hemerodrome (options = {}) {
           test.error = error.toString();
 
           test.stop = timestamp();
+        }).
+        then(() => {
+          test.parent.afterEach.forEach((item) => {
+            this.scaffoldWrapper('afterEach', test.parent, item, test.chains);
+          });
+
+          return test.chains.afterEach;
         });
 
-      return test.parent.chain;
+      return test.parent.chains.main;
     };
 
     let cwd = spec.cwd;
@@ -286,7 +385,7 @@ function Hemerodrome (options = {}) {
         breakOnSigint: true,
       });
 
-      await spec.chain;
+      await spec.chains.main;
     } catch (error) {
       spec.state = 'failed';
       spec.error = error.toString();
