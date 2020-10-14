@@ -9,6 +9,7 @@ const expect = require('barrkeep/expect');
 const { merge, timestamp } = require('barrkeep/utils');
 
 const defaults = {
+  fastFail: true,
   parrallel: true,
   concurrency: 5,
   timeout: 5000,
@@ -94,6 +95,9 @@ function Hemerodrome (options = {}) {
     state: 'ready',
     start: timestamp(),
     stop: -1,
+    passed: 0,
+    failed: 0,
+    skipped: 0,
   };
 
   this.addScaffold(root);
@@ -112,6 +116,9 @@ function Hemerodrome (options = {}) {
       state: 'running',
       start: timestamp(),
       stop: -1,
+      passed: 0,
+      failed: 0,
+      skipped: 0,
     };
 
     this.addChains(spec);
@@ -159,16 +166,14 @@ function Hemerodrome (options = {}) {
         ]);
       }).
         then(() => {
-          scaffold.state = 'passed';
           scaffold.stop = timestamp();
+          scaffold.state = 'passed';
         }).
         catch((error) => {
+          scaffold.stop = timestamp();
           scaffold.state = 'failed';
-          scaffold.parent.state = scaffold.state;
 
           scaffold.error = error.toString();
-
-          scaffold.stop = timestamp();
         });
 
       return scaffold.parent[type];
@@ -218,6 +223,9 @@ function Hemerodrome (options = {}) {
         state: 'running',
         start: timestamp(),
         stop: -1,
+        passed: 0,
+        failed: 0,
+        skipped: 0,
       };
 
       this.addChains(suite);
@@ -245,12 +253,6 @@ function Hemerodrome (options = {}) {
         then(async () => {
           await suite.chains.main;
 
-          if (suite.state === 'failed') {
-            suite.parent.state = suite.state;
-          } else {
-            suite.state = 'passed';
-          }
-
           suite.stop = timestamp();
 
           parent = suite.parent;
@@ -258,10 +260,10 @@ function Hemerodrome (options = {}) {
         catch(async (error) => {
           await suite.chains.main;
 
-          suite.state = 'failed';
-          suite.parent.state = suite.state;
-          suite.error = error.toString();
           suite.stop = timestamp();
+
+          suite.state = 'failed';
+          suite.error = error.toString();
 
           parent = suite.parent;
         }).
@@ -270,6 +272,19 @@ function Hemerodrome (options = {}) {
             this.scaffoldWrapper('after', suite.parent, item);
           });
           return suite.chains.after;
+        }).
+        then(() => {
+          if (suite.failed > 0) {
+            suite.state = 'failed';
+          } else if (suite.passed > 0) {
+            suite.state = 'passed';
+          } else {
+            suite.state = 'skipped';
+          }
+
+          suite.parent.passed += suite.passed;
+          suite.parent.failed += suite.failed;
+          suite.parent.skipped += suite.skipped;
         });
 
       return suite.chains.main;
@@ -290,47 +305,59 @@ function Hemerodrome (options = {}) {
 
       test.parent.chains.main = test.parent.chains.main.
         then(() => {
+          console.log('fast fail', this.config.fastFail, test.parent.state);
+
+          if (this.config.fastFail && test.parent.failed > 0) {
+            test.stop = test.start;
+            test.state = 'skipped';
+            test.parent.skipped++;
+
+            test.parent.items.push(test);
+
+            return true;
+          }
           test.parent.beforeEach.forEach((item) => {
             this.scaffoldWrapper('beforeEach', test.parent, item, test.chains);
           });
 
-          return test.chains.beforeEach;
-        }).
-        then(async () => {
-          console.log('it', name, parent.name);
-          test.parent.items.push(test);
+          return test.chains.beforeEach.
+            then(async () => {
+              console.log('it', name, parent.name);
+              test.parent.items.push(test);
 
-          if (test.timeout === 0) {
-            return await func();
-          }
+              if (test.timeout === 0) {
+                return await func();
+              }
 
-          return Promise.race([
-            func(),
-            new Promise((resolve, reject) => {
-              setTimeout(() => {
-                reject(new Error(`Async callback not called within timeout of ${ test.timeout }ms`));
-              }, test.timeout);
-            }),
-          ]);
-        }).
-        then(() => {
-          test.state = 'passed';
-          test.stop = timestamp();
-        }).
-        catch((error) => {
-          test.state = 'failed';
-          test.parent.state = test.state;
+              return Promise.race([
+                func(),
+                new Promise((resolve, reject) => {
+                  setTimeout(() => {
+                    reject(new Error(`Async callback not called within timeout of ${ test.timeout }ms`));
+                  }, test.timeout);
+                }),
+              ]);
+            }).
+            then(() => {
+              test.stop = timestamp();
 
-          test.error = error.toString();
+              test.state = 'passed';
+              test.parent.passed++;
+            }).
+            catch((error) => {
+              test.stop = timestamp();
+              test.state = 'failed';
+              test.parent.failed++;
 
-          test.stop = timestamp();
-        }).
-        then(() => {
-          test.parent.afterEach.forEach((item) => {
-            this.scaffoldWrapper('afterEach', test.parent, item, test.chains);
-          });
+              test.error = error.toString();
+            }).
+            then(() => {
+              test.parent.afterEach.forEach((item) => {
+                this.scaffoldWrapper('afterEach', test.parent, item, test.chains);
+              });
 
-          return test.chains.afterEach;
+              return test.chains.afterEach;
+            });
         });
 
       return test.parent.chains.main;
@@ -403,6 +430,14 @@ function Hemerodrome (options = {}) {
 
     spec.stop = timestamp();
 
+    if (spec.failed > 0) {
+      root.failed++;
+    } else if (spec.passed > 0) {
+      root.passed++;
+    } else {
+      root.skipped++;
+    }
+
     context = null;
     this.cleanObject(spec);
   }, this.config.parallel ? this.config.concurrency : 1);
@@ -414,11 +449,15 @@ function Hemerodrome (options = {}) {
   });
 
   this.queue.drain(() => {
-    if (root.state !== 'failed') {
-      root.state = 'passed';
-    }
-
     root.stop = timestamp();
+
+    if (root.failed > 0) {
+      root.state = 'failed';
+    } else if (root.passed > 0) {
+      root.state = 'passed';
+    } else {
+      root.state = 'skipped';
+    }
 
     console.log('Done!');
 

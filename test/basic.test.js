@@ -34,5 +34,9 @@ describe('foo', () => {
 
       expect(baz).to.equal(3);
     });
+
+    it('skippable', () => {
+      console.log('skip me on fast fail');
+    });
   });
 });
