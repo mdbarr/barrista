@@ -307,7 +307,7 @@ function Hemerodrome (options = {}) {
         then(() => {
           console.log('fast fail', this.config.fastFail, test.parent.state);
 
-          if (this.config.fastFail && test.parent.failed > 0) {
+          if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
             test.stop = test.start;
             test.state = 'skipped';
             test.parent.skipped++;
@@ -363,6 +363,27 @@ function Hemerodrome (options = {}) {
       return test.parent.chains.main;
     };
 
+    this.xit = (name) => {
+      const test = {
+        object: 'test',
+        name,
+        state: 'skipped',
+        start: timestamp(),
+      };
+
+      test.stop = test.start;
+
+      this.setParent(test, parent);
+
+      test.parent.chains.main = test.parent.chains.main.
+        then(() => {
+          test.parent.skipped++;
+          test.parent.items.push(test);
+        });
+    };
+
+    //////////
+
     let cwd = spec.cwd;
 
     let context = {
@@ -391,6 +412,7 @@ function Hemerodrome (options = {}) {
       setImmediate,
       setInterval,
       setTimeout,
+      xit: this.xit,
     };
 
     vm.createContext(context);
