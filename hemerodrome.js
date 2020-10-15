@@ -263,6 +263,7 @@ function Hemerodrome (options = {}) {
           suite.stop = timestamp();
 
           suite.state = 'failed';
+          suite.failed++;
           suite.error = error.toString();
 
           parent = suite.parent;
@@ -444,19 +445,16 @@ function Hemerodrome (options = {}) {
       spec.error = error.toString();
     }
 
-    if (spec.state === 'failed') {
-      root.state = spec.state;
-    } else {
-      spec.state = 'passed';
-    }
-
     spec.stop = timestamp();
 
     if (spec.failed > 0) {
+      spec.state = 'failed';
       root.failed++;
     } else if (spec.passed > 0) {
+      spec.state = 'passed';
       root.passed++;
     } else {
+      spec.state = 'skipped';
       root.skipped++;
     }
 

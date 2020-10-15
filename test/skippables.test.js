@@ -14,4 +14,10 @@ describe('skippables', () => {
       console.log('nope');
     });
   });
+
+  xdescribe('xdescribe', () => {
+    it('should be skipped', () => {
+      console.log('nope');
+    });
+  });
 });
