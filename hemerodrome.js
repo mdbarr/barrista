@@ -291,6 +291,53 @@ function Hemerodrome (options = {}) {
       return suite.chains.main;
     };
 
+    this.xdescribe = (name, func, timeout = this.config.timeout) => {
+      console.log('parent', parent.name);
+
+      const suite = {
+        object: 'suite',
+        name,
+        items: [ ],
+        state: 'skipped',
+        start: timestamp(),
+        stop: -1,
+        passed: 0,
+        failed: 0,
+        skipped: 0,
+      };
+
+      this.addChains(suite);
+      this.setParent(suite, parent);
+      this.setPrivate(suite, 'timeout', timeout);
+
+      suite.parent.chains.main = suite.parent.chains.main.
+        then(async () => {
+          console.log(suite.parent.name);
+          suite.parent.items.push(suite);
+
+          parent = suite;
+
+          console.log('xdescribe', name, suite.parent.name);
+          await func();
+        }).
+        then(async () => {
+          await suite.chains.main;
+          suite.stop = timestamp();
+          parent = suite.parent;
+        }).
+        catch(async (error) => {
+          await suite.chains.main;
+          suite.stop = timestamp();
+          suite.failed++;
+          suite.error = error.toString();
+          parent = suite.parent;
+        });
+
+      return suite.chains.main;
+    };
+
+    //////////
+
     this.it = (name, func, timeout) => {
       const test = {
         object: 'test',
@@ -413,6 +460,7 @@ function Hemerodrome (options = {}) {
       setImmediate,
       setInterval,
       setTimeout,
+      xdescribe: this.xdescribe,
       xit: this.xit,
     };
 

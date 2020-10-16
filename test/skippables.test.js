@@ -16,7 +16,7 @@ describe('skippables', () => {
   });
 
   xdescribe('xdescribe', () => {
-    it('should be skipped', () => {
+    it('not an xit, but should be skipped', () => {
       console.log('nope');
     });
   });
