@@ -2,11 +2,16 @@
 
 const vm = require('vm');
 const async = require('async');
-const fs = require('fs').promises;
 const pp = require('barrkeep/pp');
-const { join, resolve } = require('path');
+const fs = require('fs').promises;
 const expect = require('barrkeep/expect');
+const {
+  dirname, join, resolve,
+} = require('path');
 const { merge, timestamp } = require('barrkeep/utils');
+const {
+  existsSync, readFileSync, statSync,
+} = require('fs');
 
 const defaults = {
   fastFail: true,
@@ -17,6 +22,63 @@ const defaults = {
 
 function Hemerodrome (options = {}) {
   this.config = merge(defaults, options, true);
+
+  //////////
+
+  this.resolveFile = (path) => {
+    const paths = [ path, `${ path }.js`, join(path, '/index.js') ];
+
+    for (const item of paths) {
+      if (existsSync(item)) {
+        const stat = statSync(item);
+        if (stat.isFile()) {
+          return item;
+        }
+      }
+    }
+
+    return false;
+  };
+
+  this.require = (path, environment, baseContext) => {
+    const filename = this.resolveFile(path);
+    console.log('resolved', path, filename);
+
+    if (!filename) {
+      throw new Error(`No such file ${ path }`);
+    }
+
+    if (environment.cache.has(filename)) {
+      console.log('cache hit', filename);
+      return environment.cache.get(filename).exports;
+    }
+
+    console.log('cache miss', filename);
+
+    const prevCwd = environment.cwd;
+    environment.cwd = dirname(filename);
+
+    const code = readFileSync(filename);
+    const context = Object.assign({}, baseContext, {
+      __dirname: environment.cwd,
+      __filename: filename,
+      module: { exports: {} },
+      global: baseContext,
+    });
+
+    vm.createContext(context);
+
+    environment.cache.set(filename, context.module);
+
+    vm.runInContext(code, context, {
+      filename: path,
+      breakOnSigint: true,
+    });
+
+    environment.cwd = prevCwd;
+
+    return context.module.exports;
+  };
 
   //////////
 
@@ -124,6 +186,7 @@ function Hemerodrome (options = {}) {
     this.addChains(spec);
     this.addScaffold(spec);
     this.setParent(spec, root);
+    this.setPrivate(spec, 'timeout', this.config.timeout);
 
     root.items.push(spec);
 
@@ -173,7 +236,7 @@ function Hemerodrome (options = {}) {
           scaffold.stop = timestamp();
           scaffold.state = 'failed';
 
-          scaffold.error = error.toString();
+          scaffold.error = error.toString() + error.stack;
         });
 
       return scaffold.parent[type];
@@ -264,7 +327,7 @@ function Hemerodrome (options = {}) {
 
           suite.state = 'failed';
           suite.failed++;
-          suite.error = error.toString();
+          suite.error = error.toString() + error.stack;
 
           parent = suite.parent;
         }).
@@ -329,7 +392,7 @@ function Hemerodrome (options = {}) {
           await suite.chains.main;
           suite.stop = timestamp();
           suite.failed++;
-          suite.error = error.toString();
+          suite.error = error.toString() + error.stack;
           parent = suite.parent;
         });
 
@@ -397,7 +460,7 @@ function Hemerodrome (options = {}) {
               test.state = 'failed';
               test.parent.failed++;
 
-              test.error = error.toString();
+              test.error = error.toString() + error.stack;
             }).
             then(() => {
               test.parent.afterEach.forEach((item) => {
@@ -432,9 +495,14 @@ function Hemerodrome (options = {}) {
 
     //////////
 
-    let cwd = spec.cwd;
+    const environment = {
+      cache: new Map(),
+      cwd: spec.cwd,
+    };
 
     let context = {
+      __dirname: spec.cwd,
+      __filename: file,
       after: this.after,
       afterAll: this.after,
       afterEach: this.afterEach,
@@ -447,16 +515,11 @@ function Hemerodrome (options = {}) {
       console,
       describe: this.describe,
       expect,
-      global,
+      global: null,
       it: this.it,
       process,
       queueMicrotask,
-      require (path) {
-        if (/^[./]/.test(path)) {
-          path = resolve(join(cwd, path));
-        }
-        return require(path);
-      },
+      require: null,
       setImmediate,
       setInterval,
       setTimeout,
@@ -464,11 +527,34 @@ function Hemerodrome (options = {}) {
       xit: this.xit,
     };
 
+    context.global = context;
+
+    context.require = (name) => {
+      console.log('require', name, environment.cwd);
+
+      if (/^[./]/.test(name)) {
+        const path = resolve(environment.cwd, name);
+        console.log('relative require', path);
+
+        return this.require(path, environment, context);
+      }
+
+      const paths = [
+        environment.cwd,
+        join(environment.cwd, '/node_modules'),
+        process.cwd(),
+        join(process.cwd(), '/node_modules'),
+      ];
+
+      const path = require.resolve(name, { paths });
+      return require(path);
+    };
+
     vm.createContext(context);
 
     try {
       if (options.preload) {
-        cwd = resolve(options.preload.replace(/[^/]+$/, ''));
+        environment.cwd = resolve(options.preload.replace(/[^/]+$/, ''));
 
         const preload = await fs.readFile(options.preload);
 
@@ -477,7 +563,7 @@ function Hemerodrome (options = {}) {
           breakOnSigint: true,
         });
 
-        cwd = spec.cwd;
+        environment.cwd = spec.cwd;
       }
 
       const code = await fs.readFile(file);
@@ -490,7 +576,7 @@ function Hemerodrome (options = {}) {
       await spec.chains.main;
     } catch (error) {
       spec.state = 'failed';
-      spec.error = error.toString();
+      spec.error = error.toString() + error.stack;
     }
 
     spec.stop = timestamp();
