@@ -1,10 +1,10 @@
 {
-  "name": "hemerodrome",
+  "name": "barrista",
   "version": "0.0.1",
-  "description": "Hemerodrome Test Runner",
-  "main": "hemerodrome.js",
+  "description": "Barrista Test Runner",
+  "main": "barrista.js",
   "bin": "./cli.js",
-  "repository": "git@github.com:mdbarr/hemerodrome.git",
+  "repository": "git@github.com:mdbarr/barrista.git",
   "author": "Mark Barr <mark@hyperingenuity.com>",
   "license": "MIT",
   "dependencies": {

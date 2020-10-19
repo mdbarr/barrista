@@ -20,7 +20,7 @@ const defaults = {
   timeout: 5000,
 };
 
-function Hemerodrome (options = {}) {
+function Barrista (options = {}) {
   this.config = merge(defaults, options, true);
 
   //////////
@@ -151,7 +151,7 @@ function Hemerodrome (options = {}) {
   //////////
 
   const root = {
-    name: 'hemerodrome',
+    name: 'barrista',
     object: 'results',
     items: [],
     state: 'ready',
@@ -627,4 +627,4 @@ function Hemerodrome (options = {}) {
   };
 }
 
-module.exports = Hemerodrome;
+module.exports = Barrista;

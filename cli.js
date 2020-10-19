@@ -3,7 +3,7 @@
 
 const glob = require('glob');
 const { argv } = require('yargs');
-const Hemerodrome = require('./hemerodrome');
+const Barrista = require('./barrista');
 
 //////////
 
@@ -19,7 +19,7 @@ const aglob = (pattern, options) => new Promise((resolve, reject) => {
 //////////
 
 (async () => {
-  const hemerodrome = new Hemerodrome(argv);
+  const barrista = new Barrista(argv);
 
   console.pp(argv);
 
@@ -33,5 +33,5 @@ const aglob = (pattern, options) => new Promise((resolve, reject) => {
   const files = await aglob(pattern);
   console.pp(files);
 
-  hemerodrome.addFiles(files);
+  barrista.addFiles(files);
 })();
