@@ -8,13 +8,14 @@ module.exports = {
     'sourceType': 'script',
   },
   env: {
-    node: true,
     es6: true,
     jest: true,
+    node: true,
   },
   globals: {
-    before: true,
     after: true,
+    before: true,
+    mit: true,
   },
   rules: {
     'accessor-pairs': 'error',

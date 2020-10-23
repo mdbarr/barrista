@@ -89,6 +89,8 @@ function Barrista (options = {}) {
         beforeEach: Promise.resolve(),
         afterEach: Promise.resolve(),
       };
+    } else if (object.object === 'generator') {
+      value = { main: Promise.resolve() };
     } else {
       value = {
         main: Promise.resolve(),
@@ -401,7 +403,7 @@ function Barrista (options = {}) {
 
     //////////
 
-    this.it = (name, func, timeout) => {
+    this.it = (name, func, timeout, ...args) => {
       const test = {
         object: 'test',
         name,
@@ -416,8 +418,6 @@ function Barrista (options = {}) {
 
       test.parent.chains.main = test.parent.chains.main.
         then(() => {
-          console.log('fast fail', this.config.fastFail, test.parent.state);
-
           if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
             test.stop = test.start;
             test.state = 'skipped';
@@ -437,11 +437,11 @@ function Barrista (options = {}) {
               test.parent.items.push(test);
 
               if (test.timeout === 0) {
-                return await func();
+                return await func(...args);
               }
 
               return Promise.race([
-                func(),
+                func(...args),
                 new Promise((resolve, reject) => {
                   setTimeout(() => {
                     reject(new Error(`Async callback not called within timeout of ${ test.timeout }ms`));
@@ -472,6 +472,92 @@ function Barrista (options = {}) {
         });
 
       return test.parent.chains.main;
+    };
+
+    this.mit = (name, generate, func, timeout) => {
+      const generator = {
+        object: 'generator',
+        type: 'mit',
+        name,
+        state: 'running',
+        start: timestamp(),
+        stop: -1,
+      };
+
+      this.setParent(generator, parent);
+      this.addChains(generator);
+      this.setPrivate(generator, 'timeout', timeout === undefined ? parent.timeout : timeout);
+
+      generator.parent.chains.main = generator.parent.chains.main.
+        then(async () => {
+          console.log('fast fail', this.config.fastFail, generator.parent.state);
+
+          if (generator.parent.state === 'skipped' || this.config.fastFail && generator.parent.failed > 0) {
+            generator.stop = generator.start;
+            generator.state = 'skipped';
+            generator.parent.skipped++;
+
+            generator.parent.items.push(generator);
+
+            return true;
+          }
+
+          let values;
+
+          return generator.chains.main.then(() => {
+            console.log('mit', name, parent.name);
+            generator.parent.items.push(generator);
+
+            if (Array.isArray(generate)) {
+              values = generate;
+              return values;
+            }
+
+            if (generator.timeout === 0) {
+              return generate();
+            }
+
+            return Promise.race([
+              generate(),
+              new Promise((resolve, reject) => {
+                setTimeout(() => {
+                  reject(new Error(`Async callback not called within timeout of ${ generator.timeout }ms`));
+                }, generator.timeout);
+              }),
+            ]);
+          }).
+            then((result) => {
+              values = result;
+
+              generator.stop = timestamp();
+
+              generator.state = 'passed';
+              generator.parent.passed++;
+            }).
+            catch((error) => {
+              generator.stop = timestamp();
+              generator.state = 'failed';
+              generator.parent.failed++;
+
+              generator.error = error.toString() + error.stack;
+            }).
+            then(async () => {
+              console.log('here');
+              const main = parent.chains.main;
+              parent.chains.main = generator.chains.main;
+
+              if (Array.isArray(values)) {
+                for (let i = 0; i < values.length; i++) {
+                  await this.it(`${ name } - ${ i + 1 }`, func, timeout, values[i], i);
+                }
+              }
+
+              parent.chains.main = main;
+              return generator.chains.main;
+            });
+        });
+
+      return generator.parent.chains.main;
     };
 
     this.xit = (name) => {
@@ -517,6 +603,7 @@ function Barrista (options = {}) {
       expect,
       global: null,
       it: this.it,
+      mit: this.mit,
       process,
       queueMicrotask,
       require: null,
