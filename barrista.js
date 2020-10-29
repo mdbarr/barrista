@@ -560,6 +560,25 @@ function Barrista (options = {}) {
       return generator.parent.chains.main;
     };
 
+    this.fit = (name) => {
+      const test = {
+        object: 'test',
+        name,
+        state: 'passed',
+      };
+
+      this.setParent(test, parent);
+
+      test.parent.chains.main = test.parent.chains.main.
+        then(() => {
+          test.start = test.stop = timestamp();
+          test.parent.passed++;
+          test.parent.items.push(test);
+        });
+
+      return test.parent.chains.main;
+    };
+
     this.xit = (name) => {
       const test = {
         object: 'test',
@@ -575,6 +594,8 @@ function Barrista (options = {}) {
           test.parent.skipped++;
           test.parent.items.push(test);
         });
+
+      return test.parent.chains.main;
     };
 
     //////////
