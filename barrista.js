@@ -565,15 +565,13 @@ function Barrista (options = {}) {
         object: 'test',
         name,
         state: 'skipped',
-        start: timestamp(),
       };
-
-      test.stop = test.start;
 
       this.setParent(test, parent);
 
       test.parent.chains.main = test.parent.chains.main.
         then(() => {
+          test.start = test.stop = timestamp();
           test.parent.skipped++;
           test.parent.items.push(test);
         });
