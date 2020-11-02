@@ -146,6 +146,23 @@ function Barrista (options = {}) {
     });
   };
 
+  this.addHooks = (object) => {
+    this.setPrivate(object, 'hooks', {
+      'before': new Set(),
+      'before-spec': new Set(),
+      'before-suite': new Set(),
+      'before-test': new Set(),
+      'after-test': new Set(),
+      'after-suite': new Set(),
+      'after-spec': new Set(),
+      'after': new Set(),
+
+      'passed': new Set(),
+      'failed': new Set(),
+      'skipped': new Set(),
+    });
+  };
+
   this.addScaffold = (object) => {
     this.setPrivate(object, 'before', []);
     this.setPrivate(object, 'after', []);
@@ -204,6 +221,7 @@ function Barrista (options = {}) {
   };
 
   this.addScaffold(root);
+  this.addHooks(root);
 
   //////////
 
@@ -982,7 +1000,7 @@ function Barrista (options = {}) {
       root.state = 'skipped';
     }
 
-    console.log('Done!');
+    console.log('Done!', root.passed, root.failed, root.skipped);
 
     pp(root);
 
