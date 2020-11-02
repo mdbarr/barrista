@@ -2,7 +2,9 @@
 
 const vm = require('vm');
 const async = require('async');
+const stream = require('stream');
 const fs = require('fs').promises;
+const { Console } = require('console');
 const expect = require('barrkeep/expect');
 const {
   dirname, join, resolve,
@@ -145,6 +147,25 @@ function Barrista (options = {}) {
     });
   };
 
+  this.addConsole = (object) => {
+    object.stdout = '';
+    object.stderr = '';
+
+    const stdout = new stream.Writable();
+    stdout._write = (chunk, encoding, next) => {
+      object.stdout += chunk.toString();
+      return setImmediate(next);
+    };
+
+    const stderr = new stream.Writable();
+    stderr._write = (chunk, encoding, next) => {
+      object.stderr += chunk.toString(encoding);
+      return setImmediate(next);
+    };
+
+    this.setPrivate(object, 'console', new Console(stdout, stderr));
+  };
+
   this.addScaffold = (object) => {
     this.setPrivate(object, 'before', []);
     this.setPrivate(object, 'after', []);
@@ -264,6 +285,7 @@ function Barrista (options = {}) {
 
     this.addChains(spec);
     this.addScaffold(spec);
+    this.addConsole(spec);
     this.setParent(spec, root);
     this.setPrivate(spec, 'timeout', this.config.timeout);
 
@@ -928,7 +950,7 @@ function Barrista (options = {}) {
       clearImmediate,
       clearInterval,
       clearTimeout,
-      console,
+      console: spec.console,
       describe: this.describe,
       expect,
       fit: this.fit,

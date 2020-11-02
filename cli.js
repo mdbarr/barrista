@@ -26,17 +26,13 @@ const aglob = (pattern, options) => new Promise((resolve, reject) => {
     pp(report);
   });
 
-  console.pp(argv);
-
   const tests = argv._;
   if (!tests.length) {
     tests.push('test/**/*.test.js');
   }
 
   const pattern = tests.length > 1 ? `{${ tests.join(',') }}` : tests[0];
-  console.log(pattern);
   const files = await aglob(pattern);
-  console.pp(files);
 
   barrista.addFiles(files);
 })();
