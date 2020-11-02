@@ -85,18 +85,14 @@ function Barrista (options = {}) {
 
   this.require = (path, environment, baseContext) => {
     const filename = this.resolveFile(path);
-    console.log('resolved', path, filename);
 
     if (!filename) {
       throw new Error(`No such file ${ path }`);
     }
 
     if (environment.cache.has(filename)) {
-      console.log('cache hit', filename);
       return environment.cache.get(filename).exports;
     }
-
-    console.log('cache miss', filename);
 
     const prevCwd = environment.cwd;
     environment.cwd = dirname(filename);
@@ -257,7 +253,6 @@ function Barrista (options = {}) {
       chains = chains || scaffold.parent.chains;
 
       scaffold.parent.items.push(scaffold);
-      console.log(type, name, scaffold.parent.name);
 
       chains[type] = chains[type].then(async () => {
         if (scaffold.timeout === 0) {
@@ -322,8 +317,6 @@ function Barrista (options = {}) {
     //////////
 
     this.describe = (name, func, timeout = this.config.timeout, ...args) => {
-      console.log('describe parent', parent.name);
-
       const suite = {
         object: 'suite',
         name,
@@ -350,12 +343,10 @@ function Barrista (options = {}) {
           return suite.chains.before;
         }).
         then(async () => {
-          console.log(suite.parent.name);
           suite.parent.items.push(suite);
 
           parent = suite;
 
-          console.log('describe', name, suite.parent.name);
           await func(...args);
         }).
         then(async () => {
@@ -409,16 +400,12 @@ function Barrista (options = {}) {
         stop: -1,
       };
 
-      console.log('mdescribe trying...');
-
       this.setParent(generator, parent);
       this.addChains(generator);
       this.setPrivate(generator, 'timeout', timeout === undefined ? parent.timeout : timeout);
 
       generator.parent.chains.main = generator.parent.chains.main.
         then(async () => {
-          console.log('fast fail', this.config.fastFail, generator.parent.state);
-
           if (generator.parent.state === 'skipped' || this.config.fastFail && generator.parent.failed > 0) {
             generator.stop = generator.start;
             generator.state = 'skipped';
@@ -432,7 +419,6 @@ function Barrista (options = {}) {
           let values;
 
           return generator.chains.main.then(() => {
-            console.log('mdescribe', name, parent.name);
             generator.parent.items.push(generator);
 
             if (Array.isArray(generate)) {
@@ -454,7 +440,6 @@ function Barrista (options = {}) {
             ]);
           }).
             then((result) => {
-              console.log('generator succeeded', result);
               values = result;
 
               generator.stop = timestamp();
@@ -463,7 +448,6 @@ function Barrista (options = {}) {
               generator.parent.passed++;
             }).
             catch((error) => {
-              console.log('generator failed');
               generator.stop = timestamp();
               generator.state = 'failed';
               generator.parent.failed++;
@@ -489,8 +473,6 @@ function Barrista (options = {}) {
     };
 
     this.xdescribe = (name, func, timeout = this.config.timeout) => {
-      console.log('parent', parent.name);
-
       const suite = {
         object: 'suite',
         name,
@@ -509,12 +491,10 @@ function Barrista (options = {}) {
 
       suite.parent.chains.main = suite.parent.chains.main.
         then(async () => {
-          console.log(suite.parent.name);
           suite.parent.items.push(suite);
 
           parent = suite;
 
-          console.log('xdescribe', name, suite.parent.name);
           await func();
         }).
         then(async () => {
@@ -565,7 +545,6 @@ function Barrista (options = {}) {
 
           return test.chains.beforeEach.
             then(async () => {
-              console.log('it', name, parent.name);
               test.parent.items.push(test);
 
               if (test.timeout === 0) {
@@ -651,7 +630,6 @@ function Barrista (options = {}) {
 
           return test.chains.beforeEach.
             then(async () => {
-              console.log('it', name, parent.name);
               test.parent.items.push(test);
 
               if (test.timeout === 0) {
@@ -727,8 +705,6 @@ function Barrista (options = {}) {
 
       generator.parent.chains.main = generator.parent.chains.main.
         then(async () => {
-          console.log('fast fail', this.config.fastFail, generator.parent.state);
-
           if (generator.parent.state === 'skipped' || this.config.fastFail && generator.parent.failed > 0) {
             generator.stop = generator.start;
             generator.state = 'skipped';
@@ -742,7 +718,6 @@ function Barrista (options = {}) {
           let values;
 
           return generator.chains.main.then(() => {
-            console.log('mit', name, parent.name);
             generator.parent.items.push(generator);
 
             if (Array.isArray(generate)) {
@@ -779,7 +754,6 @@ function Barrista (options = {}) {
               generator.error = error.toString() + error.stack;
             }).
             then(async () => {
-              console.log('here');
               const main = parent.chains.main;
               parent.chains.main = generator.chains.main;
 
@@ -831,7 +805,6 @@ function Barrista (options = {}) {
 
           return test.chains.beforeEach.
             then(async () => {
-              console.log('it', name, parent.name);
               test.parent.items.push(test);
 
               if (test.timeout === 0) {
@@ -929,11 +902,8 @@ function Barrista (options = {}) {
     context.global = context;
 
     context.require = (name) => {
-      console.log('require', name, environment.cwd);
-
       if (/^[./]/.test(name)) {
         const path = resolve(environment.cwd, name);
-        console.log('relative require', path);
 
         return this.require(path, environment, context);
       }
