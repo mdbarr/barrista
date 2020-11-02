@@ -18,6 +18,8 @@ module.exports = {
     cit: true,
     mdescribe: true,
     mit: true,
+    retryIt: true,
+    rit: true,
   },
   rules: {
     'accessor-pairs': 'error',

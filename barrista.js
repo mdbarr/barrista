@@ -14,9 +14,13 @@ const {
 } = require('fs');
 
 const defaults = {
+  concurrency: 5,
   fastFail: true,
   parallel: true,
-  concurrency: 5,
+  retries: {
+    maximum: 10,
+    delay: 100,
+  },
   timeout: 5000,
 };
 
@@ -46,6 +50,31 @@ function Barrista (options = {}) {
 
     return false;
   };
+
+  this.delay = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
+
+  this.retry = (func, params, ...args) => Promise.resolve().
+    then(async () => {
+      try {
+        params.attempts++;
+
+        return await Promise.race([
+          func(...args),
+          new Promise((resolve, reject) => {
+            setTimeout(() => {
+              reject(new Error(`Async callback not called within timeout of ${ params.timeout }ms`));
+            }, params.timeout);
+          }),
+        ]);
+      } catch (error) {
+        if (params.attempts >= params.maximum) {
+          throw error;
+        } else {
+          return this.delay(params.delay).
+            then(() => this.retry(func, params, ...args));
+        }
+      }
+    });
 
   this.require = (path, environment, baseContext) => {
     const filename = this.resolveFile(path);
@@ -656,6 +685,25 @@ function Barrista (options = {}) {
       return test.parent.chains.main;
     };
 
+    this.fit = (name) => {
+      const test = {
+        object: 'test',
+        name,
+        state: 'passed',
+      };
+
+      this.setParent(test, parent);
+
+      test.parent.chains.main = test.parent.chains.main.
+        then(() => {
+          test.start = test.stop = timestamp();
+          test.parent.passed++;
+          test.parent.items.push(test);
+        });
+
+      return test.parent.chains.main;
+    };
+
     this.mit = (name, generate, func, timeout) => {
       const generator = {
         object: 'generator',
@@ -742,20 +790,69 @@ function Barrista (options = {}) {
       return generator.parent.chains.main;
     };
 
-    this.fit = (name) => {
+    this.rit = (name, func, params = {}, ...args) => {
       const test = {
         object: 'test',
+        type: 'retry',
         name,
-        state: 'passed',
+        state: 'running',
+        start: timestamp(),
+        stop: -1,
+        attempts: 0,
+        maximum: params.maximum || this.config.retries.maximum,
       };
 
       this.setParent(test, parent);
+      this.addChains(test);
+      this.setPrivate(test, 'delay', params.delay === undefined ? this.config.retries.delay : params.delay);
+      this.setPrivate(test, 'timeout', params.timeout === undefined ? parent.timeout : params.timeout);
 
       test.parent.chains.main = test.parent.chains.main.
         then(() => {
-          test.start = test.stop = timestamp();
-          test.parent.passed++;
-          test.parent.items.push(test);
+          if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
+            test.stop = test.start;
+            test.state = 'skipped';
+            test.parent.skipped++;
+
+            test.parent.items.push(test);
+
+            return true;
+          }
+          test.parent.beforeEach.forEach((item) => {
+            this.scaffoldWrapper('beforeEach', test.parent, item, test.chains);
+          });
+
+          return test.chains.beforeEach.
+            then(async () => {
+              console.log('it', name, parent.name);
+              test.parent.items.push(test);
+
+              if (test.timeout === 0) {
+                return await func(...args);
+              }
+
+              return this.retry(func, test, ...args);
+            }).
+            then(() => {
+              test.stop = timestamp();
+
+              test.state = 'passed';
+              test.parent.passed++;
+            }).
+            catch((error) => {
+              test.stop = timestamp();
+              test.state = 'failed';
+              test.parent.failed++;
+
+              test.error = error.toString() + error.stack;
+            }).
+            then(() => {
+              test.parent.afterEach.forEach((item) => {
+                this.scaffoldWrapper('afterEach', test.parent, item, test.chains);
+              });
+
+              return test.chains.afterEach;
+            });
         });
 
       return test.parent.chains.main;
@@ -811,6 +908,8 @@ function Barrista (options = {}) {
       process,
       queueMicrotask,
       require: null,
+      retryIt: this.rit,
+      rit: this.rit,
       setImmediate,
       setInterval,
       setTimeout,
