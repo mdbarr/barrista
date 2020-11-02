@@ -18,8 +18,9 @@ const defaults = {
   fastFail: true,
   parallel: true,
   retries: {
-    maximum: 10,
     delay: 100,
+    maximum: 10,
+    passthrough: [ 'ReferenceError', 'SyntaxError', 'TypeError' ],
   },
   timeout: 5000,
 };
@@ -67,6 +68,12 @@ function Barrista (options = {}) {
           }),
         ]);
       } catch (error) {
+        for (const pass of this.config.retries.passthrough) {
+          if (pass === error.name) {
+            throw error;
+          }
+        }
+
         if (params.attempts >= params.maximum) {
           throw error;
         } else {

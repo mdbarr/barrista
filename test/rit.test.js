@@ -6,6 +6,11 @@ describe('retry it test', () => {
   rit('retry me', () => {
     i++;
     console.log('got', i);
-    expect(i).to.equal(20);
+    expect(i).to.equal(10);
+  });
+
+  rit('not actually', () => {
+    const a = {};
+    a.b.c = 10;
   });
 });
