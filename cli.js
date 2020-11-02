@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 'use strict';
 
+const pp = require('barrkeep/pp');
 const glob = require('glob');
 const { argv } = require('yargs');
 const Barrista = require('./barrista');
@@ -20,6 +21,10 @@ const aglob = (pattern, options) => new Promise((resolve, reject) => {
 
 (async () => {
   const barrista = new Barrista(argv);
+
+  barrista.on('after', (report) => {
+    pp(report);
+  });
 
   console.pp(argv);
 

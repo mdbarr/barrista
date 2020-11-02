@@ -2,7 +2,6 @@
 
 const vm = require('vm');
 const async = require('async');
-const pp = require('barrkeep/pp');
 const fs = require('fs').promises;
 const expect = require('barrkeep/expect');
 const {
@@ -146,23 +145,6 @@ function Barrista (options = {}) {
     });
   };
 
-  this.addHooks = (object) => {
-    this.setPrivate(object, 'hooks', {
-      'before': new Set(),
-      'before-spec': new Set(),
-      'before-suite': new Set(),
-      'before-test': new Set(),
-      'after-test': new Set(),
-      'after-suite': new Set(),
-      'after-spec': new Set(),
-      'after': new Set(),
-
-      'passed': new Set(),
-      'failed': new Set(),
-      'skipped': new Set(),
-    });
-  };
-
   this.addScaffold = (object) => {
     this.setPrivate(object, 'before', []);
     this.setPrivate(object, 'after', []);
@@ -208,6 +190,47 @@ function Barrista (options = {}) {
 
   //////////
 
+  this.hooks = {
+    'before': new Set(),
+    'before-spec': new Set(),
+    'before-suite': new Set(),
+    'before-test': new Set(),
+    'after-test': new Set(),
+    'after-suite': new Set(),
+    'after-spec': new Set(),
+    'after': new Set(),
+
+    'passed': new Set(),
+    'failed': new Set(),
+    'skipped': new Set(),
+  };
+
+  this.runHooks = async (name, ...args) => {
+    if (this.hooks[name]) {
+      const hooks = [];
+
+      for (const func of this.hooks[name]) {
+        hooks.push(func(...args));
+      }
+
+      await Promise.all(hooks);
+    }
+  };
+
+  this.on = (name, func) => {
+    if (this.hooks[name]) {
+      this.hooks[name].add(func);
+    }
+  };
+
+  this.off = (name, func) => {
+    if (this.hooks[name]) {
+      this.hooks[name].delete(func);
+    }
+  };
+
+  //////////
+
   const root = {
     name: 'barrista',
     object: 'results',
@@ -219,9 +242,6 @@ function Barrista (options = {}) {
     failed: 0,
     skipped: 0,
   };
-
-  this.addScaffold(root);
-  this.addHooks(root);
 
   //////////
 
@@ -248,6 +268,8 @@ function Barrista (options = {}) {
     this.setPrivate(spec, 'timeout', this.config.timeout);
 
     root.items.push(spec);
+
+    await this.runHooks('before-spec', spec);
 
     let parent = spec;
 
@@ -355,7 +377,9 @@ function Barrista (options = {}) {
       this.setPrivate(suite, 'timeout', timeout);
 
       suite.parent.chains.main = suite.parent.chains.main.
-        then(() => {
+        then(async () => {
+          await this.runHooks('before-suite', suite);
+
           suite.parent.before.forEach((item) => {
             this.scaffoldWrapper('before', suite.parent, item);
           });
@@ -393,7 +417,7 @@ function Barrista (options = {}) {
           });
           return suite.chains.after;
         }).
-        then(() => {
+        then(async () => {
           if (suite.failed > 0) {
             suite.state = 'failed';
           } else if (suite.passed > 0) {
@@ -405,6 +429,8 @@ function Barrista (options = {}) {
           suite.parent.passed += suite.passed;
           suite.parent.failed += suite.failed;
           suite.parent.skipped += suite.skipped;
+
+          await this.runHooks('after-suite', suite);
         });
 
       return suite.parent.chains.main;
@@ -549,7 +575,7 @@ function Barrista (options = {}) {
       this.setPrivate(test, 'timeout', timeout === undefined ? parent.timeout : timeout);
 
       test.parent.chains.main = test.parent.chains.main.
-        then(() => {
+        then(async () => {
           if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
             test.stop = test.start;
             test.state = 'skipped';
@@ -559,6 +585,9 @@ function Barrista (options = {}) {
 
             return true;
           }
+
+          await this.runHooks('before-test', test);
+
           test.parent.beforeEach.forEach((item) => {
             this.scaffoldWrapper('beforeEach', test.parent, item, test.chains);
           });
@@ -593,10 +622,12 @@ function Barrista (options = {}) {
 
               test.error = error.stack;
             }).
-            then(() => {
+            then(async () => {
               test.parent.afterEach.forEach((item) => {
                 this.scaffoldWrapper('afterEach', test.parent, item, test.chains);
               });
+
+              await this.runHooks('after-test', test);
 
               return test.chains.afterEach;
             });
@@ -981,6 +1012,8 @@ function Barrista (options = {}) {
       root.skipped++;
     }
 
+    await this.runHooks('after-spec', spec);
+
     context = null;
     this.cleanObject(spec);
   }, this.config.parallel ? this.config.concurrency : 1);
@@ -991,7 +1024,7 @@ function Barrista (options = {}) {
     console.log('error', error, file);
   });
 
-  this.queue.drain(() => {
+  this.queue.drain(async () => {
     root.stop = timestamp();
 
     if (root.failed > 0) {
@@ -1002,9 +1035,9 @@ function Barrista (options = {}) {
       root.state = 'skipped';
     }
 
-    console.log('Done!', root.passed, root.failed, root.skipped);
+    await this.runHooks('after', root);
 
-    pp(root);
+    console.log('Done!');
 
     process.exit(root.state === 'failed' ? 1 : 0);
   });
