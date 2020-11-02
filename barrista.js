@@ -25,6 +25,13 @@ function Barrista (options = {}) {
 
   //////////
 
+  this.asValue = (value, ...args) => {
+    if (typeof value === 'function') {
+      return value(...args);
+    }
+    return value;
+  };
+
   this.resolveFile = (path) => {
     const paths = [ path, `${ path }.js`, join(path, '/index.js') ];
 
@@ -398,11 +405,11 @@ function Barrista (options = {}) {
             }
 
             if (generator.timeout === 0) {
-              return generate();
+              return this.asValue(generate);
             }
 
             return Promise.race([
-              generate(),
+              this.asValue(generate),
               new Promise((resolve, reject) => {
                 setTimeout(() => {
                   reject(new Error(`Async callback not called within timeout of ${ generator.timeout }ms`));
@@ -589,7 +596,7 @@ function Barrista (options = {}) {
             return true;
           }
 
-          const value = await condition();
+          const value = await this.asValue(condition);
           if (!value) {
             test.stop = timestamp();
             test.state = 'skipped';
@@ -689,11 +696,11 @@ function Barrista (options = {}) {
             }
 
             if (generator.timeout === 0) {
-              return generate();
+              return this.asValue(generate);
             }
 
             return Promise.race([
-              generate(),
+              this.asValue(generate),
               new Promise((resolve, reject) => {
                 setTimeout(() => {
                   reject(new Error(`Async callback not called within timeout of ${ generator.timeout }ms`));

@@ -5,7 +5,7 @@ describe('mit test', () => {
     console.log('normcore');
   });
 
-  mit('miterator', () => new Promise((resolve) => {
+  mit('miterator', new Promise((resolve) => {
     setTimeout(() => {
       resolve([ 1, 2, 3, 4, 5 ]);
     }, 1000);
@@ -18,7 +18,7 @@ describe('mit test', () => {
   });
 
   describe('here we go again', () => {
-    mit('sub-miterator', () => new Promise((resolve) => {
+    mit('sub-miterator', new Promise((resolve) => {
       setTimeout(() => {
         resolve([ 6, 7, 8 ]);
       }, 1000);
