@@ -288,13 +288,15 @@ function Barrista (options = {}) {
       }).
         then(() => {
           scaffold.stop = timestamp();
+          ancestor.passed++;
           scaffold.state = 'passed';
         }).
         catch((error) => {
           scaffold.stop = timestamp();
+          ancestor.failed++;
           scaffold.state = 'failed';
 
-          scaffold.error = error.toString() + error.stack;
+          scaffold.error = error.stack;
         });
 
       return scaffold.parent[type];
@@ -381,7 +383,7 @@ function Barrista (options = {}) {
 
           suite.state = 'failed';
           suite.failed++;
-          suite.error = error.toString() + error.stack;
+          suite.error = error.stack;
 
           parent = suite.parent;
         }).
@@ -470,7 +472,7 @@ function Barrista (options = {}) {
               generator.state = 'failed';
               generator.parent.failed++;
 
-              generator.error = error.toString() + error.stack;
+              generator.error = error.stack;
             }).
             then(async () => {
               const main = parent.chains.main;
@@ -524,7 +526,7 @@ function Barrista (options = {}) {
           await suite.chains.main;
           suite.stop = timestamp();
           suite.failed++;
-          suite.error = error.toString() + error.stack;
+          suite.error = error.stack;
           parent = suite.parent;
         });
 
@@ -589,7 +591,7 @@ function Barrista (options = {}) {
               test.state = 'failed';
               test.parent.failed++;
 
-              test.error = error.toString() + error.stack;
+              test.error = error.stack;
             }).
             then(() => {
               test.parent.afterEach.forEach((item) => {
@@ -674,7 +676,7 @@ function Barrista (options = {}) {
               test.state = 'failed';
               test.parent.failed++;
 
-              test.error = error.toString() + error.stack;
+              test.error = error.stack;
             }).
             then(() => {
               test.parent.afterEach.forEach((item) => {
@@ -769,7 +771,7 @@ function Barrista (options = {}) {
               generator.state = 'failed';
               generator.parent.failed++;
 
-              generator.error = error.toString() + error.stack;
+              generator.error = error.stack;
             }).
             then(async () => {
               const main = parent.chains.main;
@@ -842,7 +844,7 @@ function Barrista (options = {}) {
               test.state = 'failed';
               test.parent.failed++;
 
-              test.error = error.toString() + error.stack;
+              test.error = error.stack;
             }).
             then(() => {
               test.parent.afterEach.forEach((item) => {
@@ -963,7 +965,7 @@ function Barrista (options = {}) {
       await spec.chains.main;
     } catch (error) {
       spec.state = 'failed';
-      spec.error = error.toString() + error.stack;
+      spec.error = error.stack;
     }
 
     spec.stop = timestamp();
