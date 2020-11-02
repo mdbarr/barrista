@@ -15,7 +15,7 @@ const {
 
 const defaults = {
   fastFail: true,
-  parrallel: true,
+  parallel: true,
   concurrency: 5,
   timeout: 5000,
 };
@@ -278,8 +278,8 @@ function Barrista (options = {}) {
 
     //////////
 
-    this.describe = (name, func, timeout = this.config.timeout) => {
-      console.log('parent', parent.name);
+    this.describe = (name, func, timeout = this.config.timeout, ...args) => {
+      console.log('describe parent', parent.name);
 
       const suite = {
         object: 'suite',
@@ -313,7 +313,7 @@ function Barrista (options = {}) {
           parent = suite;
 
           console.log('describe', name, suite.parent.name);
-          await func();
+          await func(...args);
         }).
         then(async () => {
           await suite.chains.main;
@@ -353,7 +353,96 @@ function Barrista (options = {}) {
           suite.parent.skipped += suite.skipped;
         });
 
-      return suite.chains.main;
+      return suite.parent.chains.main;
+    };
+
+    this.mdescribe = (name, generate, func, timeout) => {
+      const generator = {
+        object: 'generator',
+        type: 'mdescribe',
+        name,
+        state: 'running',
+        start: timestamp(),
+        stop: -1,
+      };
+
+      console.log('mdescribe trying...');
+
+      this.setParent(generator, parent);
+      this.addChains(generator);
+      this.setPrivate(generator, 'timeout', timeout === undefined ? parent.timeout : timeout);
+
+      generator.parent.chains.main = generator.parent.chains.main.
+        then(async () => {
+          console.log('fast fail', this.config.fastFail, generator.parent.state);
+
+          if (generator.parent.state === 'skipped' || this.config.fastFail && generator.parent.failed > 0) {
+            generator.stop = generator.start;
+            generator.state = 'skipped';
+            generator.parent.skipped++;
+
+            generator.parent.items.push(generator);
+
+            return true;
+          }
+
+          let values;
+
+          return generator.chains.main.then(() => {
+            console.log('mdescribe', name, parent.name);
+            generator.parent.items.push(generator);
+
+            if (Array.isArray(generate)) {
+              values = generate;
+              return values;
+            }
+
+            if (generator.timeout === 0) {
+              return generate();
+            }
+
+            return Promise.race([
+              generate(),
+              new Promise((resolve, reject) => {
+                setTimeout(() => {
+                  reject(new Error(`Async callback not called within timeout of ${ generator.timeout }ms`));
+                }, generator.timeout);
+              }),
+            ]);
+          }).
+            then((result) => {
+              console.log('generator succeeded', result);
+              values = result;
+
+              generator.stop = timestamp();
+
+              generator.state = 'passed';
+              generator.parent.passed++;
+            }).
+            catch((error) => {
+              console.log('generator failed');
+              generator.stop = timestamp();
+              generator.state = 'failed';
+              generator.parent.failed++;
+
+              generator.error = error.toString() + error.stack;
+            }).
+            then(async () => {
+              const main = parent.chains.main;
+              parent.chains.main = generator.chains.main;
+
+              if (Array.isArray(values)) {
+                for (let i = 0; i < values.length; i++) {
+                  await this.describe(`${ name } - ${ i + 1 }`, func, timeout, values[i], i);
+                }
+              }
+
+              parent.chains.main = main;
+              return generator.chains.main;
+            });
+        });
+
+      return generator.parent.chains.main;
     };
 
     this.xdescribe = (name, func, timeout = this.config.timeout) => {
@@ -398,7 +487,7 @@ function Barrista (options = {}) {
           parent = suite.parent;
         });
 
-      return suite.chains.main;
+      return suite.parent.chains.main;
     };
 
     //////////
@@ -623,6 +712,7 @@ function Barrista (options = {}) {
       global: null,
       it: this.it,
       fit: this.fit,
+      mdescribe: this.mdescribe,
       mit: this.mit,
       process,
       queueMicrotask,
