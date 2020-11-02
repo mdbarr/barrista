@@ -622,6 +622,7 @@ function Barrista (options = {}) {
       expect,
       global: null,
       it: this.it,
+      fit: this.fit,
       mit: this.mit,
       process,
       queueMicrotask,
@@ -631,6 +632,7 @@ function Barrista (options = {}) {
       setTimeout,
       xdescribe: this.xdescribe,
       xit: this.xit,
+      xmit: this.xit,
     };
 
     context.global = context;
