@@ -563,6 +563,92 @@ function Barrista (options = {}) {
       return test.parent.chains.main;
     };
 
+    this.cit = (name, condition, func, timeout, ...args) => {
+      const test = {
+        object: 'test',
+        type: 'conditional',
+        name,
+        state: 'running',
+        start: timestamp(),
+        stop: -1,
+      };
+
+      this.setParent(test, parent);
+      this.addChains(test);
+      this.setPrivate(test, 'timeout', timeout === undefined ? parent.timeout : timeout);
+
+      test.parent.chains.main = test.parent.chains.main.
+        then(async () => {
+          if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
+            test.stop = test.start;
+            test.state = 'skipped';
+            test.parent.skipped++;
+
+            test.parent.items.push(test);
+
+            return true;
+          }
+
+          const value = await condition();
+          if (!value) {
+            test.stop = timestamp();
+            test.state = 'skipped';
+            test.parent.skipped++;
+
+            test.parent.items.push(test);
+
+            return true;
+          }
+
+          //////////
+
+          test.parent.beforeEach.forEach((item) => {
+            this.scaffoldWrapper('beforeEach', test.parent, item, test.chains);
+          });
+
+          return test.chains.beforeEach.
+            then(async () => {
+              console.log('it', name, parent.name);
+              test.parent.items.push(test);
+
+              if (test.timeout === 0) {
+                return await func(...args);
+              }
+
+              return Promise.race([
+                func(...args),
+                new Promise((resolve, reject) => {
+                  setTimeout(() => {
+                    reject(new Error(`Async callback not called within timeout of ${ test.timeout }ms`));
+                  }, test.timeout);
+                }),
+              ]);
+            }).
+            then(() => {
+              test.stop = timestamp();
+
+              test.state = 'passed';
+              test.parent.passed++;
+            }).
+            catch((error) => {
+              test.stop = timestamp();
+              test.state = 'failed';
+              test.parent.failed++;
+
+              test.error = error.toString() + error.stack;
+            }).
+            then(() => {
+              test.parent.afterEach.forEach((item) => {
+                this.scaffoldWrapper('afterEach', test.parent, item, test.chains);
+              });
+
+              return test.chains.afterEach;
+            });
+        });
+
+      return test.parent.chains.main;
+    };
+
     this.mit = (name, generate, func, timeout) => {
       const generator = {
         object: 'generator',
@@ -703,15 +789,16 @@ function Barrista (options = {}) {
       before: this.before,
       beforeAll: this.beforeAll,
       beforeEach: this.beforeEach,
+      cit: this.cit,
       clearImmediate,
       clearInterval,
       clearTimeout,
       console,
       describe: this.describe,
       expect,
+      fit: this.fit,
       global: null,
       it: this.it,
-      fit: this.fit,
       mdescribe: this.mdescribe,
       mit: this.mit,
       process,
@@ -722,6 +809,7 @@ function Barrista (options = {}) {
       setTimeout,
       xdescribe: this.xdescribe,
       xit: this.xit,
+      xcit: this.xit,
       xmit: this.xit,
     };
 

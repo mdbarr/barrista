@@ -15,6 +15,7 @@ module.exports = {
   globals: {
     after: true,
     before: true,
+    cit: true,
     mdescribe: true,
     mit: true,
   },
