@@ -147,23 +147,32 @@ function Barrista (options = {}) {
     });
   };
 
-  this.addConsole = (object) => {
-    object.stdout = '';
-    object.stderr = '';
+  this.addConsole = (spec) => {
+    this.setPrivate(spec, 'current', spec);
 
     const stdout = new stream.Writable();
     stdout._write = (chunk, encoding, next) => {
-      object.stdout += chunk.toString();
+      if (spec.current) {
+        if (!spec.current.stdout) {
+          spec.current.stdout = '';
+        }
+        spec.current.stdout += chunk.toString();
+      }
       return setImmediate(next);
     };
 
     const stderr = new stream.Writable();
     stderr._write = (chunk, encoding, next) => {
-      object.stderr += chunk.toString(encoding);
+      if (spec.current) {
+        if (!spec.current.stderr) {
+          spec.current.stderr = '';
+        }
+        spec.current.stderr += chunk.toString();
+      }
       return setImmediate(next);
     };
 
-    this.setPrivate(object, 'console', new Console(stdout, stderr));
+    this.setPrivate(spec, 'console', new Console(stdout, stderr));
   };
 
   this.addScaffold = (object) => {
@@ -474,6 +483,8 @@ function Barrista (options = {}) {
 
       generator.parent.chains.main = generator.parent.chains.main.
         then(async () => {
+          spec.current = generator;
+
           if (generator.parent.state === 'skipped' || this.config.fastFail && generator.parent.failed > 0) {
             generator.stop = generator.start;
             generator.state = 'skipped';
@@ -559,6 +570,8 @@ function Barrista (options = {}) {
 
       suite.parent.chains.main = suite.parent.chains.main.
         then(async () => {
+          spec.current = suite;
+
           suite.parent.items.push(suite);
 
           parent = suite;
@@ -598,6 +611,8 @@ function Barrista (options = {}) {
 
       test.parent.chains.main = test.parent.chains.main.
         then(async () => {
+          spec.current = test;
+
           if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
             test.stop = test.start;
             test.state = 'skipped';
@@ -674,6 +689,8 @@ function Barrista (options = {}) {
 
       test.parent.chains.main = test.parent.chains.main.
         then(async () => {
+          spec.current = test;
+
           if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
             test.stop = test.start;
             test.state = 'skipped';
@@ -754,6 +771,8 @@ function Barrista (options = {}) {
 
       test.parent.chains.main = test.parent.chains.main.
         then(() => {
+          spec.current = test;
+
           test.start = test.stop = timestamp();
           test.parent.passed++;
           test.parent.items.push(test);
@@ -778,6 +797,8 @@ function Barrista (options = {}) {
 
       generator.parent.chains.main = generator.parent.chains.main.
         then(async () => {
+          spec.current = generator;
+
           if (generator.parent.state === 'skipped' || this.config.fastFail && generator.parent.failed > 0) {
             generator.stop = generator.start;
             generator.state = 'skipped';
@@ -863,6 +884,8 @@ function Barrista (options = {}) {
 
       test.parent.chains.main = test.parent.chains.main.
         then(() => {
+          spec.current = test;
+
           if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
             test.stop = test.start;
             test.state = 'skipped';
@@ -922,6 +945,8 @@ function Barrista (options = {}) {
 
       test.parent.chains.main = test.parent.chains.main.
         then(() => {
+          spec.current = test;
+
           test.start = test.stop = timestamp();
           test.parent.skipped++;
           test.parent.items.push(test);
