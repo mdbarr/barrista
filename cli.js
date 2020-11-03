@@ -34,7 +34,7 @@ const aglob = (pattern, options) => new Promise((resolve, reject) => {
   const pattern = tests.length > 1 ? `{${ tests.join(',') }}` : tests[0];
   const files = await aglob(pattern);
 
-  barrista.addFiles(files);
+  barrista.add(files);
 
   await barrista.start();
   await barrista.done();

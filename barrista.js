@@ -31,14 +31,23 @@ function Barrista (options = {}) {
 
   //////////
 
-  this.asValue = (value, ...args) => {
+  const asValue = (value, ...args) => {
     if (typeof value === 'function') {
       return value(...args);
     }
     return value;
   };
 
-  this.resolveFile = (path) => {
+  const hide = (object, property, value) => {
+    Object.defineProperty(object, property, {
+      value,
+      writable: true,
+      configurable: true,
+      enumerable: false,
+    });
+  };
+
+  const resolveFile = (path) => {
     const paths = [ path, `${ path }.js`, join(path, '/index.js') ];
 
     for (const item of paths) {
@@ -53,9 +62,9 @@ function Barrista (options = {}) {
     return false;
   };
 
-  this.delay = (delay) => new Promise((resolve) => setTimeout(resolve, delay));
+  const delay = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-  this.retry = (func, params, ...args) => Promise.resolve().
+  const retry = (func, params, ...args) => Promise.resolve().
     then(async () => {
       try {
         params.attempts++;
@@ -78,14 +87,14 @@ function Barrista (options = {}) {
         if (params.attempts >= params.maximum) {
           throw error;
         } else {
-          return this.delay(params.delay).
-            then(() => this.retry(func, params, ...args));
+          return delay(params.delay).
+            then(() => retry(func, params, ...args));
         }
       }
     });
 
-  this.require = (path, environment, baseContext) => {
-    const filename = this.resolveFile(path);
+  const _require = (path, environment, baseContext) => {
+    const filename = resolveFile(path);
 
     if (!filename) {
       throw new Error(`No such file ${ path }`);
@@ -122,7 +131,7 @@ function Barrista (options = {}) {
 
   //////////
 
-  this.addChains = (object) => {
+  const addChains = (object) => {
     let value;
     if (object.object === 'test') {
       value = {
@@ -147,8 +156,8 @@ function Barrista (options = {}) {
     });
   };
 
-  this.addConsole = (spec) => {
-    this.setPrivate(spec, 'current', spec);
+  const addConsole = (spec) => {
+    hide(spec, 'current', spec);
 
     const stdout = new stream.Writable();
     stdout._write = (chunk, encoding, next) => {
@@ -172,17 +181,17 @@ function Barrista (options = {}) {
       return setImmediate(next);
     };
 
-    this.setPrivate(spec, 'console', new Console(stdout, stderr));
+    hide(spec, 'console', new Console(stdout, stderr));
   };
 
-  this.addScaffold = (object) => {
-    this.setPrivate(object, 'before', []);
-    this.setPrivate(object, 'after', []);
-    this.setPrivate(object, 'beforeEach', []);
-    this.setPrivate(object, 'afterEach', []);
+  const addScaffold = (object) => {
+    hide(object, 'before', []);
+    hide(object, 'after', []);
+    hide(object, 'beforeEach', []);
+    hide(object, 'afterEach', []);
   };
 
-  this.setParent = (object, parent) => {
+  const setParent = (object, parent) => {
     Object.defineProperty(object, 'parent', {
       value: parent,
       writable: false,
@@ -191,18 +200,9 @@ function Barrista (options = {}) {
     });
   };
 
-  this.setPrivate = (object, property, value) => {
-    Object.defineProperty(object, property, {
-      value,
-      writable: true,
-      configurable: true,
-      enumerable: false,
-    });
-  };
-
   //////////
 
-  this.cleanObject = (object, recurse = true) => {
+  const cleanObject = (object, recurse = true) => {
     const keys = Object.getOwnPropertyNames(object);
 
     for (const key of keys) {
@@ -213,14 +213,14 @@ function Barrista (options = {}) {
 
     if (recurse && Array.isArray(object.items)) {
       for (const item of object.items) {
-        this.cleanObject(item);
+        cleanObject(item);
       }
     }
   };
 
   //////////
 
-  this.events = {
+  const events = {
     'before': new Set(),
     'before-spec': new Set(),
     'before-suite': new Set(),
@@ -236,26 +236,26 @@ function Barrista (options = {}) {
   };
 
   this.emit = async (name, ...args) => {
-    if (this.events[name]) {
-      const events = [];
+    if (events[name]) {
+      const promises = [];
 
-      for (const func of this.events[name]) {
-        events.push(func(...args));
+      for (const func of events[name]) {
+        promises.push(func(...args));
       }
 
-      await Promise.all(events);
+      await Promise.all(promises);
     }
   };
 
   this.on = (name, func) => {
-    if (this.events[name]) {
-      this.events[name].add(func);
+    if (events[name]) {
+      events[name].add(func);
     }
   };
 
   this.off = (name, func) => {
-    if (this.events[name]) {
-      this.events[name].delete(func);
+    if (events[name]) {
+      events[name].delete(func);
     }
   };
 
@@ -275,7 +275,7 @@ function Barrista (options = {}) {
 
   //////////
 
-  this.queue = async.queue(async (file) => {
+  const queue = async.queue(async (file) => {
     root.state = 'running';
 
     const spec = {
@@ -292,11 +292,11 @@ function Barrista (options = {}) {
       skipped: 0,
     };
 
-    this.addChains(spec);
-    this.addScaffold(spec);
-    this.addConsole(spec);
-    this.setParent(spec, root);
-    this.setPrivate(spec, 'timeout', this.config.timeout);
+    addChains(spec);
+    addScaffold(spec);
+    addConsole(spec);
+    setParent(spec, root);
+    hide(spec, 'timeout', this.config.timeout);
 
     root.items.push(spec);
 
@@ -306,7 +306,7 @@ function Barrista (options = {}) {
 
     //////////
 
-    this.scaffoldWrapper = (type, ancestor, {
+    const scaffoldWrapper = (type, ancestor, {
       name, func, timeout,
     }, chains) => {
       const scaffold = {
@@ -318,8 +318,8 @@ function Barrista (options = {}) {
         stop: -1,
       };
 
-      this.setParent(scaffold, ancestor);
-      this.setPrivate(scaffold, 'timeout', timeout === undefined ? scaffold.parent.timeout : timeout);
+      setParent(scaffold, ancestor);
+      hide(scaffold, 'timeout', timeout === undefined ? scaffold.parent.timeout : timeout);
 
       chains = chains || scaffold.parent.chains;
 
@@ -357,7 +357,7 @@ function Barrista (options = {}) {
       return scaffold.parent[type];
     };
 
-    this.before = (name, func, timeout) => {
+    const before = (name, func, timeout) => {
       parent.before.push({
         name,
         func,
@@ -365,7 +365,7 @@ function Barrista (options = {}) {
       });
     };
 
-    this.after = (name, func, timeout) => {
+    const after = (name, func, timeout) => {
       parent.after.push({
         name,
         func,
@@ -373,7 +373,7 @@ function Barrista (options = {}) {
       });
     };
 
-    this.beforeEach = (name, func, timeout) => {
+    const beforeEach = (name, func, timeout) => {
       parent.beforeEach.push({
         name,
         func,
@@ -381,7 +381,7 @@ function Barrista (options = {}) {
       });
     };
 
-    this.afterEach = (name, func, timeout) => {
+    const afterEach = (name, func, timeout) => {
       parent.afterEach.push({
         name,
         func,
@@ -391,7 +391,7 @@ function Barrista (options = {}) {
 
     //////////
 
-    this.describe = (name, func, timeout = this.config.timeout, ...args) => {
+    const describe = (name, func, timeout = this.config.timeout, ...args) => {
       const suite = {
         object: 'suite',
         name,
@@ -404,10 +404,10 @@ function Barrista (options = {}) {
         skipped: 0,
       };
 
-      this.addChains(suite);
-      this.addScaffold(suite);
-      this.setParent(suite, parent);
-      this.setPrivate(suite, 'timeout', timeout);
+      addChains(suite);
+      addScaffold(suite);
+      setParent(suite, parent);
+      hide(suite, 'timeout', timeout);
 
       suite.parent.chains.main = suite.parent.chains.main.
         then(async () => {
@@ -422,7 +422,7 @@ function Barrista (options = {}) {
 
           if (suite.state !== 'skipped') {
             suite.parent.before.forEach((item) => {
-              this.scaffoldWrapper('before', suite.parent, item);
+              scaffoldWrapper('before', suite.parent, item);
             });
           }
 
@@ -456,7 +456,7 @@ function Barrista (options = {}) {
         then(() => {
           if (suite.state !== 'skipped') {
             suite.parent.after.forEach((item) => {
-              this.scaffoldWrapper('after', suite.parent, item);
+              scaffoldWrapper('after', suite.parent, item);
             });
           }
           return suite.chains.after;
@@ -480,7 +480,7 @@ function Barrista (options = {}) {
       return suite.parent.chains.main;
     };
 
-    this.mdescribe = (name, generate, func, timeout) => {
+    const mdescribe = (name, generate, func, timeout) => {
       const generator = {
         object: 'generator',
         type: 'mdescribe',
@@ -490,9 +490,9 @@ function Barrista (options = {}) {
         stop: -1,
       };
 
-      this.setParent(generator, parent);
-      this.addChains(generator);
-      this.setPrivate(generator, 'timeout', timeout === undefined ? parent.timeout : timeout);
+      setParent(generator, parent);
+      addChains(generator);
+      hide(generator, 'timeout', timeout === undefined ? parent.timeout : timeout);
 
       generator.parent.chains.main = generator.parent.chains.main.
         then(async () => {
@@ -519,11 +519,11 @@ function Barrista (options = {}) {
             }
 
             if (generator.timeout === 0) {
-              return this.asValue(generate);
+              return asValue(generate);
             }
 
             return Promise.race([
-              this.asValue(generate),
+              asValue(generate),
               new Promise((resolve, reject) => {
                 setTimeout(() => {
                   reject(new Error(`Async callback not called within timeout of ${ generator.timeout }ms`));
@@ -552,7 +552,7 @@ function Barrista (options = {}) {
 
               if (Array.isArray(values)) {
                 for (let i = 0; i < values.length; i++) {
-                  await this.describe(`${ name } - ${ i + 1 }`, func, timeout, values[i], i);
+                  await describe(`${ name } - ${ i + 1 }`, func, timeout, values[i], i);
                 }
               }
 
@@ -564,7 +564,7 @@ function Barrista (options = {}) {
       return generator.parent.chains.main;
     };
 
-    this.xdescribe = (name, func, timeout = this.config.timeout) => {
+    const xdescribe = (name, func, timeout = this.config.timeout) => {
       const suite = {
         object: 'suite',
         name,
@@ -577,9 +577,9 @@ function Barrista (options = {}) {
         skipped: 0,
       };
 
-      this.addChains(suite);
-      this.setParent(suite, parent);
-      this.setPrivate(suite, 'timeout', timeout);
+      addChains(suite);
+      setParent(suite, parent);
+      hide(suite, 'timeout', timeout);
 
       suite.parent.chains.main = suite.parent.chains.main.
         then(async () => {
@@ -609,7 +609,7 @@ function Barrista (options = {}) {
 
     //////////
 
-    this.it = (name, func, timeout, ...args) => {
+    const it = (name, func, timeout, ...args) => {
       const test = {
         object: 'test',
         name,
@@ -618,9 +618,9 @@ function Barrista (options = {}) {
         stop: -1,
       };
 
-      this.setParent(test, parent);
-      this.addChains(test);
-      this.setPrivate(test, 'timeout', timeout === undefined ? parent.timeout : timeout);
+      setParent(test, parent);
+      addChains(test);
+      hide(test, 'timeout', timeout === undefined ? parent.timeout : timeout);
 
       test.parent.chains.main = test.parent.chains.main.
         then(async () => {
@@ -639,7 +639,7 @@ function Barrista (options = {}) {
           await this.emit('before-test', test);
 
           test.parent.beforeEach.forEach((item) => {
-            this.scaffoldWrapper('beforeEach', test.parent, item, test.chains);
+            scaffoldWrapper('beforeEach', test.parent, item, test.chains);
           });
 
           return test.chains.beforeEach.
@@ -674,7 +674,7 @@ function Barrista (options = {}) {
             }).
             then(async () => {
               test.parent.afterEach.forEach((item) => {
-                this.scaffoldWrapper('afterEach', test.parent, item, test.chains);
+                scaffoldWrapper('afterEach', test.parent, item, test.chains);
               });
 
               await this.emit('after-test', test);
@@ -686,7 +686,7 @@ function Barrista (options = {}) {
       return test.parent.chains.main;
     };
 
-    this.cit = (name, condition, func, timeout, ...args) => {
+    const cit = (name, condition, func, timeout, ...args) => {
       const test = {
         object: 'test',
         type: 'conditional',
@@ -696,9 +696,9 @@ function Barrista (options = {}) {
         stop: -1,
       };
 
-      this.setParent(test, parent);
-      this.addChains(test);
-      this.setPrivate(test, 'timeout', timeout === undefined ? parent.timeout : timeout);
+      setParent(test, parent);
+      addChains(test);
+      hide(test, 'timeout', timeout === undefined ? parent.timeout : timeout);
 
       test.parent.chains.main = test.parent.chains.main.
         then(async () => {
@@ -714,7 +714,7 @@ function Barrista (options = {}) {
             return true;
           }
 
-          const value = await this.asValue(condition);
+          const value = await asValue(condition);
           if (!value) {
             test.stop = timestamp();
             test.state = 'skipped';
@@ -728,7 +728,7 @@ function Barrista (options = {}) {
           //////////
 
           test.parent.beforeEach.forEach((item) => {
-            this.scaffoldWrapper('beforeEach', test.parent, item, test.chains);
+            scaffoldWrapper('beforeEach', test.parent, item, test.chains);
           });
 
           return test.chains.beforeEach.
@@ -763,7 +763,7 @@ function Barrista (options = {}) {
             }).
             then(() => {
               test.parent.afterEach.forEach((item) => {
-                this.scaffoldWrapper('afterEach', test.parent, item, test.chains);
+                scaffoldWrapper('afterEach', test.parent, item, test.chains);
               });
 
               return test.chains.afterEach;
@@ -773,14 +773,14 @@ function Barrista (options = {}) {
       return test.parent.chains.main;
     };
 
-    this.fit = (name) => {
+    const fit = (name) => {
       const test = {
         object: 'test',
         name,
         state: 'passed',
       };
 
-      this.setParent(test, parent);
+      setParent(test, parent);
 
       test.parent.chains.main = test.parent.chains.main.
         then(() => {
@@ -794,7 +794,7 @@ function Barrista (options = {}) {
       return test.parent.chains.main;
     };
 
-    this.mit = (name, generate, func, timeout) => {
+    const mit = (name, generate, func, timeout) => {
       const generator = {
         object: 'generator',
         type: 'mit',
@@ -804,9 +804,9 @@ function Barrista (options = {}) {
         stop: -1,
       };
 
-      this.setParent(generator, parent);
-      this.addChains(generator);
-      this.setPrivate(generator, 'timeout', timeout === undefined ? parent.timeout : timeout);
+      setParent(generator, parent);
+      addChains(generator);
+      hide(generator, 'timeout', timeout === undefined ? parent.timeout : timeout);
 
       generator.parent.chains.main = generator.parent.chains.main.
         then(async () => {
@@ -833,11 +833,11 @@ function Barrista (options = {}) {
             }
 
             if (generator.timeout === 0) {
-              return this.asValue(generate);
+              return asValue(generate);
             }
 
             return Promise.race([
-              this.asValue(generate),
+              asValue(generate),
               new Promise((resolve, reject) => {
                 setTimeout(() => {
                   reject(new Error(`Async callback not called within timeout of ${ generator.timeout }ms`));
@@ -866,7 +866,7 @@ function Barrista (options = {}) {
 
               if (Array.isArray(values)) {
                 for (let i = 0; i < values.length; i++) {
-                  await this.it(`${ name } - ${ i + 1 }`, func, timeout, values[i], i);
+                  await it(`${ name } - ${ i + 1 }`, func, timeout, values[i], i);
                 }
               }
 
@@ -878,7 +878,7 @@ function Barrista (options = {}) {
       return generator.parent.chains.main;
     };
 
-    this.rit = (name, func, params = {}, ...args) => {
+    const rit = (name, func, params = {}, ...args) => {
       const test = {
         object: 'test',
         type: 'retry',
@@ -890,10 +890,10 @@ function Barrista (options = {}) {
         maximum: params.maximum || this.config.retries.maximum,
       };
 
-      this.setParent(test, parent);
-      this.addChains(test);
-      this.setPrivate(test, 'delay', params.delay === undefined ? this.config.retries.delay : params.delay);
-      this.setPrivate(test, 'timeout', params.timeout === undefined ? parent.timeout : params.timeout);
+      setParent(test, parent);
+      addChains(test);
+      hide(test, 'delay', params.delay === undefined ? this.config.retries.delay : params.delay);
+      hide(test, 'timeout', params.timeout === undefined ? parent.timeout : params.timeout);
 
       test.parent.chains.main = test.parent.chains.main.
         then(() => {
@@ -909,7 +909,7 @@ function Barrista (options = {}) {
             return true;
           }
           test.parent.beforeEach.forEach((item) => {
-            this.scaffoldWrapper('beforeEach', test.parent, item, test.chains);
+            scaffoldWrapper('beforeEach', test.parent, item, test.chains);
           });
 
           return test.chains.beforeEach.
@@ -920,7 +920,7 @@ function Barrista (options = {}) {
                 return await func(...args);
               }
 
-              return this.retry(func, test, ...args);
+              return retry(func, test, ...args);
             }).
             then(() => {
               test.stop = timestamp();
@@ -937,7 +937,7 @@ function Barrista (options = {}) {
             }).
             then(() => {
               test.parent.afterEach.forEach((item) => {
-                this.scaffoldWrapper('afterEach', test.parent, item, test.chains);
+                scaffoldWrapper('afterEach', test.parent, item, test.chains);
               });
 
               return test.chains.afterEach;
@@ -947,14 +947,14 @@ function Barrista (options = {}) {
       return test.parent.chains.main;
     };
 
-    this.xit = (name) => {
+    const xit = (name) => {
       const test = {
         object: 'test',
         name,
         state: 'skipped',
       };
 
-      this.setParent(test, parent);
+      setParent(test, parent);
 
       test.parent.chains.main = test.parent.chains.main.
         then(() => {
@@ -978,36 +978,36 @@ function Barrista (options = {}) {
     let context = {
       __dirname: spec.cwd,
       __filename: file,
-      after: this.after,
-      afterAll: this.after,
-      afterEach: this.afterEach,
-      before: this.before,
-      beforeAll: this.before,
-      beforeEach: this.beforeEach,
-      cit: this.cit,
+      after,
+      afterAll: after,
+      afterEach,
+      before,
+      beforeAll: before,
+      beforeEach,
+      cit,
       clearImmediate,
       clearInterval,
       clearTimeout,
       console: spec.console,
-      describe: this.describe,
+      describe,
       expect,
-      fit: this.fit,
+      fit,
       global: null,
-      it: this.it,
-      mdescribe: this.mdescribe,
-      mit: this.mit,
+      it,
+      mdescribe,
+      mit,
       process,
       queueMicrotask,
       require: null,
-      retryIt: this.rit,
-      rit: this.rit,
+      retryIt: rit,
+      rit,
       setImmediate,
       setInterval,
       setTimeout,
-      xdescribe: this.xdescribe,
-      xit: this.xit,
-      xcit: this.xit,
-      xmit: this.xit,
+      xdescribe,
+      xit,
+      xcit: xit,
+      xmit: xit,
     };
 
     context.global = context;
@@ -1016,7 +1016,7 @@ function Barrista (options = {}) {
       if (/^[./]/.test(name)) {
         const path = resolve(environment.cwd, name);
 
-        return this.require(path, environment, context);
+        return _require(path, environment, context);
       }
 
       const paths = [
@@ -1075,16 +1075,16 @@ function Barrista (options = {}) {
     await this.emit('after-spec', spec);
 
     context = null;
-    this.cleanObject(spec);
+    cleanObject(spec);
   }, this.config.parallel ? this.config.concurrency : 1);
 
   //////////
 
-  this.queue.error((error, file) => {
+  queue.error((error, file) => {
     console.log('error', error, file);
   });
 
-  this.queue.drain(async () => {
+  queue.drain(async () => {
     root.stop = timestamp();
 
     if (root.failed > 0) {
@@ -1102,12 +1102,14 @@ function Barrista (options = {}) {
     process.exit(root.state === 'failed' ? 1 : 0);
   });
 
-  this.queue.pause();
+  queue.pause();
 
   /////////
 
-  this.addFiles = (files) => {
-    this.queue.push(files);
+  this.add = (...args) => {
+    for (const files of args) {
+      queue.push(files);
+    }
   };
 
   //////////
@@ -1120,12 +1122,12 @@ function Barrista (options = {}) {
       await this.emit('before', root);
     }
 
-    if (this.queue.paused) {
-      this.queue.resume();
+    if (queue.paused) {
+      queue.resume();
     }
   };
 
-  this.done = (...args) => this.queue.drain(...args);
+  this.done = (...args) => queue.drain(...args);
 }
 
 module.exports = Barrista;
