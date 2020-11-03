@@ -21,7 +21,7 @@ const defaults = {
   retries: {
     delay: 100,
     maximum: 10,
-    passthrough: [ 'ReferenceError', 'SyntaxError', 'TypeError' ],
+    throws: [ 'ReferenceError', 'SyntaxError', 'TypeError' ],
   },
   timeout: 5000,
 };
@@ -69,8 +69,8 @@ function Barrista (options = {}) {
           }),
         ]);
       } catch (error) {
-        for (const pass of this.config.retries.passthrough) {
-          if (pass === error.name) {
+        for (const name of this.config.retries.throws) {
+          if (name === error.name) {
             throw error;
           }
         }
@@ -220,7 +220,7 @@ function Barrista (options = {}) {
 
   //////////
 
-  this.hooks = {
+  this.events = {
     'before': new Set(),
     'before-spec': new Set(),
     'before-suite': new Set(),
@@ -235,27 +235,27 @@ function Barrista (options = {}) {
     'skipped': new Set(),
   };
 
-  this.runHooks = async (name, ...args) => {
-    if (this.hooks[name]) {
-      const hooks = [];
+  this.emit = async (name, ...args) => {
+    if (this.events[name]) {
+      const events = [];
 
-      for (const func of this.hooks[name]) {
-        hooks.push(func(...args));
+      for (const func of this.events[name]) {
+        events.push(func(...args));
       }
 
-      await Promise.all(hooks);
+      await Promise.all(events);
     }
   };
 
   this.on = (name, func) => {
-    if (this.hooks[name]) {
-      this.hooks[name].add(func);
+    if (this.events[name]) {
+      this.events[name].add(func);
     }
   };
 
   this.off = (name, func) => {
-    if (this.hooks[name]) {
-      this.hooks[name].delete(func);
+    if (this.events[name]) {
+      this.events[name].delete(func);
     }
   };
 
@@ -300,7 +300,7 @@ function Barrista (options = {}) {
 
     root.items.push(spec);
 
-    await this.runHooks('before-spec', spec);
+    await this.emit('before-spec', spec);
 
     let parent = spec;
 
@@ -357,7 +357,7 @@ function Barrista (options = {}) {
       return scaffold.parent[type];
     };
 
-    this.before = this.beforeAll = (name, func, timeout) => {
+    this.before = (name, func, timeout) => {
       parent.before.push({
         name,
         func,
@@ -365,7 +365,7 @@ function Barrista (options = {}) {
       });
     };
 
-    this.after = this.afterAll = (name, func, timeout) => {
+    this.after = (name, func, timeout) => {
       parent.after.push({
         name,
         func,
@@ -418,7 +418,7 @@ function Barrista (options = {}) {
             suite.state = 'skipped';
           }
 
-          await this.runHooks('before-suite', suite);
+          await this.emit('before-suite', suite);
 
           if (suite.state !== 'skipped') {
             suite.parent.before.forEach((item) => {
@@ -474,7 +474,7 @@ function Barrista (options = {}) {
           suite.parent.failed += suite.failed;
           suite.parent.skipped += suite.skipped;
 
-          await this.runHooks('after-suite', suite);
+          await this.emit('after-suite', suite);
         });
 
       return suite.parent.chains.main;
@@ -636,7 +636,7 @@ function Barrista (options = {}) {
             return true;
           }
 
-          await this.runHooks('before-test', test);
+          await this.emit('before-test', test);
 
           test.parent.beforeEach.forEach((item) => {
             this.scaffoldWrapper('beforeEach', test.parent, item, test.chains);
@@ -677,7 +677,7 @@ function Barrista (options = {}) {
                 this.scaffoldWrapper('afterEach', test.parent, item, test.chains);
               });
 
-              await this.runHooks('after-test', test);
+              await this.emit('after-test', test);
 
               return test.chains.afterEach;
             });
@@ -982,7 +982,7 @@ function Barrista (options = {}) {
       afterAll: this.after,
       afterEach: this.afterEach,
       before: this.before,
-      beforeAll: this.beforeAll,
+      beforeAll: this.before,
       beforeEach: this.beforeEach,
       cit: this.cit,
       clearImmediate,
@@ -1072,7 +1072,7 @@ function Barrista (options = {}) {
       root.skipped++;
     }
 
-    await this.runHooks('after-spec', spec);
+    await this.emit('after-spec', spec);
 
     context = null;
     this.cleanObject(spec);
@@ -1095,7 +1095,7 @@ function Barrista (options = {}) {
       root.state = 'skipped';
     }
 
-    await this.runHooks('after', root);
+    await this.emit('after', root);
 
     console.log('Done!');
 
@@ -1117,7 +1117,7 @@ function Barrista (options = {}) {
   this.start = async () => {
     if (!started) {
       started = true;
-      await this.runHooks('before', root);
+      await this.emit('before', root);
     }
 
     if (this.queue.paused) {
