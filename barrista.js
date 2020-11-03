@@ -326,6 +326,8 @@ function Barrista (options = {}) {
       scaffold.parent.items.push(scaffold);
 
       chains[type] = chains[type].then(async () => {
+        spec.current = scaffold;
+
         if (scaffold.timeout === 0) {
           return await func();
         }
@@ -409,11 +411,20 @@ function Barrista (options = {}) {
 
       suite.parent.chains.main = suite.parent.chains.main.
         then(async () => {
+          spec.current = suite;
+
+          if (suite.parent.state === 'skipped' || this.config.fastFail && suite.parent.failed > 0) {
+            suite.stop = suite.start;
+            suite.state = 'skipped';
+          }
+
           await this.runHooks('before-suite', suite);
 
-          suite.parent.before.forEach((item) => {
-            this.scaffoldWrapper('before', suite.parent, item);
-          });
+          if (suite.state !== 'skipped') {
+            suite.parent.before.forEach((item) => {
+              this.scaffoldWrapper('before', suite.parent, item);
+            });
+          }
 
           return suite.chains.before;
         }).
@@ -443,9 +454,11 @@ function Barrista (options = {}) {
           parent = suite.parent;
         }).
         then(() => {
-          suite.parent.after.forEach((item) => {
-            this.scaffoldWrapper('after', suite.parent, item);
-          });
+          if (suite.state !== 'skipped') {
+            suite.parent.after.forEach((item) => {
+              this.scaffoldWrapper('after', suite.parent, item);
+            });
+          }
           return suite.chains.after;
         }).
         then(async () => {
