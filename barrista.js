@@ -1089,11 +1089,30 @@ function Barrista (options = {}) {
     process.exit(root.state === 'failed' ? 1 : 0);
   });
 
+  this.queue.pause();
+
   /////////
 
   this.addFiles = (files) => {
     this.queue.push(files);
   };
+
+  //////////
+
+  let started = false;
+
+  this.start = async () => {
+    if (!started) {
+      started = true;
+      await this.runHooks('before', root);
+    }
+
+    if (this.queue.paused) {
+      this.queue.resume();
+    }
+  };
+
+  this.done = (...args) => this.queue.drain(...args);
 }
 
 module.exports = Barrista;

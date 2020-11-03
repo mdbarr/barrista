@@ -35,4 +35,7 @@ const aglob = (pattern, options) => new Promise((resolve, reject) => {
   const files = await aglob(pattern);
 
   barrista.addFiles(files);
+
+  await barrista.start();
+  await barrista.done();
 })();
