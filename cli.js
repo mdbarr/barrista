@@ -23,7 +23,11 @@ const aglob = (pattern, options) => new Promise((resolve, reject) => {
   const barrista = new Barrista(argv);
 
   barrista.on('after', (report) => {
-    pp(report);
+    // pp(report);
+  });
+
+  barrista.on('after-spec', (spec) => {
+    console.log(spec.name, spec.items[0].name, spec.state);
   });
 
   const tests = argv._;

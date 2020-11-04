@@ -671,6 +671,7 @@ function Barrista (options = {}) {
               test.parent.failed++;
 
               test.error = error.stack;
+              test.code = func.toString();
             }).
             then(async () => {
               test.parent.afterEach.forEach((item) => {
@@ -760,6 +761,7 @@ function Barrista (options = {}) {
               test.parent.failed++;
 
               test.error = error.stack;
+              test.code = func.toString();
             }).
             then(() => {
               test.parent.afterEach.forEach((item) => {
@@ -934,6 +936,7 @@ function Barrista (options = {}) {
               test.parent.failed++;
 
               test.error = error.stack;
+              test.code = func.toString();
             }).
             then(() => {
               test.parent.afterEach.forEach((item) => {
