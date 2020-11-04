@@ -484,7 +484,7 @@ function Barrista (options = {}) {
     const mdescribe = (name, generate, func, timeout) => {
       const generator = {
         object: 'generator',
-        type: 'mdescribe',
+        type: 'suite',
         name,
         state: 'running',
         start: timestamp(),
@@ -568,6 +568,7 @@ function Barrista (options = {}) {
     const xdescribe = (name, func, timeout = this.config.timeout) => {
       const suite = {
         object: 'suite',
+        type: 'disabled',
         name,
         items: [ ],
         state: 'skipped',
@@ -797,10 +798,90 @@ function Barrista (options = {}) {
       return test.parent.chains.main;
     };
 
+    const iit = (name, func, timeout, ...args) => {
+      const test = {
+        object: 'test',
+        type: 'inverted',
+        name,
+        state: 'running',
+        start: timestamp(),
+        stop: -1,
+      };
+
+      setParent(test, parent);
+      addChains(test);
+      hide(test, 'timeout', timeout === undefined ? parent.timeout : timeout);
+
+      test.parent.chains.main = test.parent.chains.main.
+        then(async () => {
+          spec.current = test;
+
+          if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
+            test.stop = test.start;
+            test.state = 'skipped';
+            test.parent.skipped++;
+
+            test.parent.items.push(test);
+
+            return true;
+          }
+
+          await this.emit('before-test', test);
+
+          test.parent.beforeEach.forEach((item) => {
+            scaffoldWrapper('beforeEach', test.parent, item, test.chains);
+          });
+
+          return test.chains.beforeEach.
+            then(async () => {
+              test.parent.items.push(test);
+
+              if (test.timeout === 0) {
+                return await func(...args);
+              }
+
+              return Promise.race([
+                func(...args),
+                new Promise((resolve, reject) => {
+                  setTimeout(() => {
+                    reject(new Error(`Async callback not called within timeout of ${ test.timeout }ms`));
+                  }, test.timeout);
+                }),
+              ]);
+            }).
+            then(() => {
+              test.stop = timestamp();
+              test.state = 'failed';
+              test.parent.failed++;
+
+              test.code = func.toString();
+            }).
+            catch((error) => {
+              test.stop = timestamp();
+
+              test.state = 'passed';
+              test.parent.passed++;
+
+              test.error = error.stack;
+            }).
+            then(async () => {
+              test.parent.afterEach.forEach((item) => {
+                scaffoldWrapper('afterEach', test.parent, item, test.chains);
+              });
+
+              await this.emit('after-test', test);
+
+              return test.chains.afterEach;
+            });
+        });
+
+      return test.parent.chains.main;
+    };
+
     const mit = (name, generate, func, timeout) => {
       const generator = {
         object: 'generator',
-        type: 'mit',
+        type: 'test',
         name,
         state: 'running',
         start: timestamp(),
@@ -954,6 +1035,7 @@ function Barrista (options = {}) {
     const xit = (name) => {
       const test = {
         object: 'test',
+        type: 'disabled',
         name,
         state: 'skipped',
       };
@@ -997,6 +1079,7 @@ function Barrista (options = {}) {
       expect,
       fit,
       global: null,
+      iit,
       it,
       mdescribe,
       mit,
@@ -1008,9 +1091,9 @@ function Barrista (options = {}) {
       setImmediate,
       setInterval,
       setTimeout,
+      xcit: xit,
       xdescribe,
       xit,
-      xcit: xit,
       xmit: xit,
     };
 
