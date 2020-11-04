@@ -1,7 +1,7 @@
 'use strict';
 
-module.exports = (barrista, options) => {
-  if (process.stdout.isTTY && process.stdin.isTTY) {
+module.exports = (barrista, options = {}) => {
+  if (process.stdout.isTTY && process.stdin.isTTY && options.reporters !== false) {
     const { Spinner } = require('barrkeep/progress');
 
     const stream = process.stdout;
@@ -15,7 +15,7 @@ module.exports = (barrista, options) => {
     }
 
     barrista.on('before', () => {
-      console.log(`\x1b[H\x1b[2J\x1b[?25hBarrista v${ barrista.version} starting...`);
+      console.log(`\x1b[H\x1b[2J\x1b[?25hBarrista v${ barrista.version } starting...`);
     });
 
     barrista.on('before-spec', (spec) => {
@@ -64,7 +64,7 @@ module.exports = (barrista, options) => {
     barrista.on('after', (report) => {
       console.log();
       console.log(`Test Specs: ${ report.passed }, ${ report.items.length } total`);
-      console.log(`Tests: ${ report.passed }, ${ report.items.length } total`      );
+      console.log(`Tests: ${ report.passed }, ${ report.items.length } total` );
       console.log(`Time: ${ report.stop - report.start }`);
     });
   }
