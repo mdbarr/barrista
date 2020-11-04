@@ -22,13 +22,17 @@ const aglob = (pattern, options) => new Promise((resolve, reject) => {
 (async () => {
   const barrista = new Barrista(argv);
 
+  //////////
+
   barrista.on('after', (report) => {
-    // pp(report);
+    if (argv.debug) {
+      pp(report);
+    }
   });
 
-  barrista.on('after-spec', (spec) => {
-    console.log(spec.name, spec.items[0].name, spec.state);
-  });
+  require('./reporters/terminal.reporter.js')(barrista, argv);
+
+  //////////
 
   const tests = argv._;
   if (!tests.length) {
@@ -39,6 +43,8 @@ const aglob = (pattern, options) => new Promise((resolve, reject) => {
   const files = await aglob(pattern);
 
   barrista.add(files);
+
+  //////////
 
   await barrista.start();
   await barrista.done();

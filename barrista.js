@@ -27,6 +27,7 @@ const defaults = {
 };
 
 function Barrista (options = {}) {
+  this.version = require('./package.json').version;
   this.config = merge(defaults, options, true);
 
   //////////
