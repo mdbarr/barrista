@@ -314,8 +314,8 @@ function Barrista (options = {}) {
         object: 'scaffold',
         type,
         name,
-        state: 'running',
-        start: timestamp(),
+        state: 'queued',
+        start: -1,
         stop: -1,
       };
 
@@ -328,6 +328,8 @@ function Barrista (options = {}) {
 
       chains[type] = chains[type].then(async () => {
         spec.current = scaffold;
+        scaffold.state = 'running';
+        scaffold.start = timestamp();
 
         if (scaffold.timeout === 0) {
           return await func();
@@ -397,8 +399,8 @@ function Barrista (options = {}) {
         object: 'suite',
         name,
         items: [ ],
-        state: 'running',
-        start: timestamp(),
+        state: 'queued',
+        start: -1,
         stop: -1,
         passed: 0,
         failed: 0,
@@ -413,6 +415,8 @@ function Barrista (options = {}) {
       suite.parent.chains.main = suite.parent.chains.main.
         then(async () => {
           spec.current = suite;
+          suite.state = 'running';
+          suite.start = timestamp();
 
           if (suite.parent.state === 'skipped' || this.config.fastFail && suite.parent.failed > 0) {
             suite.stop = suite.start;
@@ -486,8 +490,8 @@ function Barrista (options = {}) {
         object: 'generator',
         type: 'suite',
         name,
-        state: 'running',
-        start: timestamp(),
+        state: 'queued',
+        start: -1,
         stop: -1,
       };
 
@@ -498,6 +502,9 @@ function Barrista (options = {}) {
       generator.parent.chains.main = generator.parent.chains.main.
         then(async () => {
           spec.current = generator;
+
+          generator.state = 'running';
+          generator.start = timestamp();
 
           if (generator.parent.state === 'skipped' || this.config.fastFail && generator.parent.failed > 0) {
             generator.stop = generator.start;
@@ -615,8 +622,8 @@ function Barrista (options = {}) {
       const test = {
         object: 'test',
         name,
-        state: 'running',
-        start: timestamp(),
+        state: 'queued',
+        start: -1,
         stop: -1,
       };
 
@@ -627,6 +634,9 @@ function Barrista (options = {}) {
       test.parent.chains.main = test.parent.chains.main.
         then(async () => {
           spec.current = test;
+
+          test.state = 'running';
+          test.start = timestamp();
 
           if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
             test.stop = test.start;
@@ -694,8 +704,8 @@ function Barrista (options = {}) {
         object: 'test',
         type: 'conditional',
         name,
-        state: 'running',
-        start: timestamp(),
+        state: 'queued',
+        start: -1,
         stop: -1,
       };
 
@@ -706,6 +716,9 @@ function Barrista (options = {}) {
       test.parent.chains.main = test.parent.chains.main.
         then(async () => {
           spec.current = test;
+
+          test.state = 'running';
+          test.start = timestamp();
 
           if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
             test.stop = test.start;
@@ -803,7 +816,7 @@ function Barrista (options = {}) {
         object: 'test',
         type: 'inverted',
         name,
-        state: 'running',
+        state: 'queued',
         start: timestamp(),
         stop: -1,
       };
@@ -815,6 +828,9 @@ function Barrista (options = {}) {
       test.parent.chains.main = test.parent.chains.main.
         then(async () => {
           spec.current = test;
+
+          test.state = 'running';
+          test.start = timestamp();
 
           if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
             test.stop = test.start;
@@ -883,8 +899,8 @@ function Barrista (options = {}) {
         object: 'generator',
         type: 'test',
         name,
-        state: 'running',
-        start: timestamp(),
+        state: 'queued',
+        start: -1,
         stop: -1,
       };
 
@@ -895,6 +911,9 @@ function Barrista (options = {}) {
       generator.parent.chains.main = generator.parent.chains.main.
         then(async () => {
           spec.current = generator;
+
+          generator.state = 'running';
+          generator.start = timestamp();
 
           if (generator.parent.state === 'skipped' || this.config.fastFail && generator.parent.failed > 0) {
             generator.stop = generator.start;
@@ -967,8 +986,8 @@ function Barrista (options = {}) {
         object: 'test',
         type: 'retry',
         name,
-        state: 'running',
-        start: timestamp(),
+        state: 'queued',
+        start: -1,
         stop: -1,
         attempts: 0,
         maximum: params.maximum || this.config.retries.maximum,
@@ -982,6 +1001,9 @@ function Barrista (options = {}) {
       test.parent.chains.main = test.parent.chains.main.
         then(() => {
           spec.current = test;
+
+          test.state = 'running';
+          test.start = timestamp();
 
           if (test.parent.state === 'skipped' || this.config.fastFail && test.parent.failed > 0) {
             test.stop = test.start;
