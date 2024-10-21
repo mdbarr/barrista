@@ -2,20 +2,9 @@
 'use strict';
 
 const pp = require('barrkeep/pp');
-const glob = require('glob');
+const { glob } = require('glob');
 const { argv } = require('yargs');
 const Barrista = require('./barrista');
-
-//////////
-
-const aglob = (pattern, options) => new Promise((resolve, reject) => {
-  glob(pattern, options, (error, result) => {
-    if (error) {
-      return reject(error);
-    }
-    return resolve(result);
-  });
-});
 
 //////////
 
@@ -40,7 +29,7 @@ const aglob = (pattern, options) => new Promise((resolve, reject) => {
   }
 
   const pattern = tests.length > 1 ? `{${ tests.join(',') }}` : tests[0];
-  const files = await aglob(pattern);
+  const files = await glob(pattern);
 
   barrista.add(files);
 
